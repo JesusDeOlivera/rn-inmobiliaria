@@ -25,7 +25,7 @@ export default function AdminPanel() {
   const [editandoId, setEditandoId] = useState(null)
   
   const CONTACTOS = {
-    papa: { nombre: 'RN Inmobiliaria', tel: '5493765067519', email: 'rninmobiliaria@gmail.com' },
+    papa: { nombre: 'RN Inmobiliaria', tel: '5493764170186', email: 'negocioinmobiliariorn@gmail.com' },
     socio: { nombre: 'Socio RN', tel: '5493764000000', email: 'socio@rninmobiliaria.com' }
   }
 
@@ -34,7 +34,7 @@ export default function AdminPanel() {
     tipo: 'Casa Usada', zona: 'Centro', imagenes: [],
     habitaciones: '', banos: '', metros_cuadrados: '', direccion: '',
     estado_interno: 'Disponible',
-    vendedor_asignado: 'papa',
+    vendedor_asignado: 'Ramon Norberto',
     nombre_vendedor: CONTACTOS.papa.nombre,
     telefono_vendedor: CONTACTOS.papa.tel,
     email_vendedor: CONTACTOS.papa.email
@@ -217,7 +217,7 @@ export default function AdminPanel() {
               <div>
                 <label style={labelStyle}>Vendedor Responsable</label>
                 <select value={formData.vendedor_asignado} style={inputStyle} onChange={e => handleVendedorChange(e.target.value)}>
-                  <option value="papa">Papá (RN Inmobiliaria)</option><option value="socio">Socio</option>
+                  <option value="papa">(RN Inmobiliaria)</option><option value="socio">Socio</option>
                 </select>
               </div>
               <div>

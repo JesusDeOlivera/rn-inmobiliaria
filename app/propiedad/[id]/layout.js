@@ -35,7 +35,7 @@ export async function generateMetadata({ params }) {
     openGraph: {
       title: tituloWhatsApp,
       description: descripcionWhatsApp,
-      url: `https://tudominio.com/propiedad/${id}`, // Acá el día de mañana pones tu .com
+      url: `https://rn-inmobiliaria.vercel.app`, // Acá el día de mañana pones tu .com
       siteName: 'RN Inmobiliaria',
       images: [
         {

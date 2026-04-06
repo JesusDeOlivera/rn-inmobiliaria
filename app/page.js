@@ -50,7 +50,7 @@ export default function Home() {
   const enviarFormulario = (e) => {
     e.preventDefault()
     const texto = `Hola RN Inmobiliaria. Soy ${formContacto.nombre}.\nMi Email: ${formContacto.email}\n\nMensaje: ${formContacto.mensaje}`
-    window.open(`https://wa.me/5493765067519?text=${encodeURIComponent(texto)}`, '_blank')
+    window.open(`https://wa.me/5493764170186?text=${encodeURIComponent(texto)}`, '_blank')
     setFormContacto({ nombre: '', email: '', mensaje: '' })
   }
 
@@ -451,7 +451,7 @@ export default function Home() {
 
         {/* WhatsApp CTA */}
         <a
-          href="https://wa.me/5493765067519"
+          href="https://wa.me/5493764170186?text=Hola%20RN%20Inmobiliaria.%20Estoy%20interesado%20en%20sus%20servicios.%20Me%20gustaría%20saber%20más."
           target="_blank" rel="noopener noreferrer"
           style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', backgroundColor: '#25D366', color: 'white', padding: '16px 32px', borderRadius: '16px', fontWeight: '800', fontSize: '1rem', textDecoration: 'none', marginBottom: '44px', minHeight: '52px', WebkitTapHighlightColor: 'transparent' }}
         >

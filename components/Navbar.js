@@ -55,7 +55,6 @@ export default function Navbar() {
           <div style={{ background: '#020617', color: 'white', padding: '8px 12px', borderRadius: '12px', fontWeight: 900 }}>
             RN
           </div>
-          {/* Texto que se oculta en pantallas muy chicas (< 400px) */}
           <span style={{ fontWeight: 900, color: '#020617', fontSize: '1rem', letterSpacing: '-1px' }} className="logo-texto">
             INMOBILIARIA
           </span>
@@ -69,6 +68,20 @@ export default function Navbar() {
           <Link href="/favoritos" style={{ ...navLinkStyle(pathname === '/favoritos'), color: '#ef4444' }}>
             ❤️ {favoritos.length > 0 && `(${favoritos.length})`}
           </Link>
+
+          {/* Separador vertical sutil */}
+          <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0', margin: '0 10px' }}></div>
+
+          {/* BOTONES DE SESIÓN EN ESCRITORIO */}
+          {!sesion ? (
+            <Link href="/login" style={{ ...navLinkStyle(pathname === '/login'), color: '#020617', fontWeight: 800 }}>
+              Ingresar
+            </Link>
+          ) : (
+            <Link href="/admin" style={{ padding: '10px 18px', borderRadius: '10px', textDecoration: 'none', fontWeight: 800, fontSize: '0.9rem', transition: '0.2s', background: '#020617', color: 'white' }}>
+              Panel Admin
+            </Link>
+          )}
         </nav>
 
         {/* Botón Hamburguesa - LIMPIO - Sin onTouchStart raro */}
@@ -106,7 +119,6 @@ export default function Navbar() {
         transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
         boxShadow: '0 -20px 40px rgba(0,0,0,0.1)'
       }}>
-        {/* Handle visual para que sepan que es un menú */}
         <div style={{ width: '40px', height: '5px', background: '#e2e8f0', borderRadius: '10px', margin: '0 auto 25px' }} />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -125,13 +137,13 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* CSS para el manejo de visibilidad sin Tailwind (por si falla) */}
+      {/* CSS para el manejo de visibilidad */}
       <style>{`
-        @media (max-width: 768px) {
+        @media (max-width: 850px) {
           .nav-desktop { display: none !important; }
           .btn-menu { display: flex !important; }
         }
-        @media (min-width: 769px) {
+        @media (min-width: 851px) {
           .nav-desktop { display: flex !important; }
           .btn-menu { display: none !important; }
         }
