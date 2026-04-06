@@ -283,7 +283,7 @@ export default function AdminPanel() {
 
                 {/* Botonera de Acción (Baja sola si no hay espacio) */}
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-start' }}>
-                  <select value={p.estado_interno || 'Disponible'} onChange={(e) => cambiarEstadoRapido(p.id, e.target.value)} style={{ padding: '12px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '800', border: '1px solid #e2e8f0', cursor: 'pointer', backgroundColor: '#f8fafc', flex: '1 1 120px' }}>
+                  <select value={p.estado_interno || 'Disponible'} onChange={(e) => cambiarEstadoRapido(p.id, e.target.value)} style={{ padding: '12px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '800', border: '1px solid #94a3b8', cursor: 'pointer', backgroundColor: '#ffffff', flex: '1 1 120px', color: '#000000', WebkitOpacity: 1, opacity: 1, WebkitAppearance: 'none', appearance: 'none' }}>
                     <option>Disponible</option><option>Reservada</option><option>Vendida</option>
                   </select>
                   <button onClick={() => prepararEdicion(p)} style={{ backgroundColor: '#EEF2FF', border: '1px solid #e0e7ff', color: '#4F46E5', padding: '12px 20px', borderRadius: '12px', fontWeight: '800', cursor: 'pointer', fontSize: '0.8rem', flex: '1 1 auto' }}>EDITAR</button>
