@@ -25,8 +25,9 @@ export default function CatalogoAvanzado() {
   const [supMin, setSupMin] = useState('')
   const [supMax, setSupMax] = useState('')
 
-  // NUEVO ESTADO: VISTA (Grilla o Mapa)
-  const [vistaActiva, setVistaActiva] = useState('grilla') // 'grilla' o 'mapa'
+  // NUEVOS ESTADOS: Vista y Menú Móvil
+  const [vistaActiva, setVistaActiva] = useState('grilla') 
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false) // Controla si se ven los filtros en el celular
 
   useEffect(() => {
     fetchPropiedades()
@@ -35,15 +36,13 @@ export default function CatalogoAvanzado() {
     setFavoritos(favsGuardados)
   }, [])
 
-  // LÓGICA DE FILTRADO REACTIVO
   useEffect(() => {
     let temp = [...propiedades]
-    
     if (ubicacion) {
         temp = temp.filter(p => 
             p.zona?.toLowerCase().includes(ubicacion.toLowerCase()) || 
             p.titulo?.toLowerCase().includes(ubicacion.toLowerCase()) ||
-            p.direccion?.toLowerCase().includes(ubicacion.toLowerCase()) // Ahora también busca por dirección exacta
+            p.direccion?.toLowerCase().includes(ubicacion.toLowerCase())
         )
     }
     if (tipoPropiedad !== 'Todos') temp = temp.filter(p => p.tipo === tipoPropiedad)
@@ -75,16 +74,11 @@ export default function CatalogoAvanzado() {
     localStorage.setItem('rn_favoritos', JSON.stringify(nuevosFavs))
   }
 
-  // Generar la URL del mapa basada en los resultados filtrados.
-  // Si hay una búsqueda específica (ubicación o dirección), centramos el mapa ahí.
-  // Si no, lo centramos en Posadas, Misiones por defecto.
   const mapQuery = filtradas.length > 0 && filtradas[0].direccion 
       ? encodeURIComponent(`${filtradas[0].direccion}, Misiones, Argentina`) 
       : (ubicacion ? encodeURIComponent(`${ubicacion}, Misiones, Argentina`) : encodeURIComponent('Posadas, Misiones, Argentina'));
-
   const mapUrl = `https://maps.google.com/maps?q=${mapQuery}&t=&z=13&ie=UTF8&iwloc=&output=embed`;
 
-  // Estilos UI
   const labelStyle = { display: 'block', fontSize: '0.75rem', fontWeight: '900', color: '#020617', textTransform: 'uppercase', marginBottom: '12px', marginTop: '25px', letterSpacing: '1px' }
   const inputStyle = { width: '100%', padding: '12px 15px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '0.9rem', outline: 'none', color: '#020617', fontWeight: '600', backgroundColor: '#f8fafc' }
   
@@ -103,8 +97,6 @@ export default function CatalogoAvanzado() {
 
   return (
     <main style={{ minHeight: '100vh', backgroundColor: '#f8fafc', fontFamily: 'system-ui, sans-serif' }}>
-    
-
       <div style={{ padding: '30px 5%', maxWidth: '1600px', margin: '0 auto' }}>
           
           <div style={{ display: 'flex', gap: '10px', color: '#94a3b8', fontSize: '0.85rem', fontWeight: '600', marginBottom: '30px' }}>
@@ -113,10 +105,23 @@ export default function CatalogoAvanzado() {
               <span style={{ color: '#020617' }}>Búsqueda Avanzada</span>
           </div>
 
-          <div style={{ display: 'flex', gap: '40px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          {/* BOTÓN MÓVIL PARA MOSTRAR/OCULTAR FILTROS */}
+          <button 
+            className="btn-filtros-movil"
+            onClick={() => setFiltrosAbiertos(!filtrosAbiertos)}
+            style={{ width: '100%', padding: '16px', backgroundColor: '#020617', color: 'white', borderRadius: '16px', fontWeight: '900', marginBottom: '20px', border: 'none', cursor: 'pointer', fontSize: '1rem', display: 'none' }} // Se oculta en PC vía CSS
+          >
+            {filtrosAbiertos ? 'Ocultar Filtros ✖' : 'Mostrar Filtros ⚲'}
+          </button>
+
+          {/* LAYOUT PRINCIPAL CON FLEX WRAP */}
+          <div className="layout-principal" style={{ display: 'flex', gap: '40px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
               
-              {/* SIDEBAR */}
-              <aside style={{ flex: '1 1 300px', maxWidth: '320px', backgroundColor: 'white', borderRadius: '24px', padding: '25px', border: '1px solid #e2e8f0', position: 'sticky', top: '100px' }}>
+              {/* SIDEBAR DE FILTROS */}
+              <aside 
+                className={`sidebar-filtros ${filtrosAbiertos ? 'abierto' : ''}`} 
+                style={{ flex: '1 1 300px', maxWidth: '320px', backgroundColor: 'white', borderRadius: '24px', padding: '25px', border: '1px solid #e2e8f0', position: 'sticky', top: '100px' }}
+              >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                       <span style={{ fontSize: '1.2rem' }}>⚲</span>
                       <h2 style={{ fontSize: '1.2rem', fontWeight: '900', color: '#020617', margin: 0 }}>Filtros</h2>
@@ -160,38 +165,28 @@ export default function CatalogoAvanzado() {
                       <input value={supMax} onChange={(e) => setSupMax(e.target.value)} type="number" placeholder="Max" style={inputStyle} />
                   </div>
 
-                  <button onClick={() => { setUbicacion(''); setTipoPropiedad('Todos'); setPrecioMin(''); setPrecioMax(''); setMoneda('Todos'); setAmbientes('Todos'); setSupMin(''); setSupMax(''); }} style={{ width: '100%', padding: '12px', borderRadius: '12px', backgroundColor: '#f1f5f9', color: '#64748b', fontWeight: '800', border: 'none', cursor: 'pointer' }}>
+                  <button 
+                    onClick={() => { setUbicacion(''); setTipoPropiedad('Todos'); setPrecioMin(''); setPrecioMax(''); setMoneda('Todos'); setAmbientes('Todos'); setSupMin(''); setSupMax(''); setFiltrosAbiertos(false); }} 
+                    style={{ width: '100%', padding: '12px', borderRadius: '12px', backgroundColor: '#f1f5f9', color: '#64748b', fontWeight: '800', border: 'none', cursor: 'pointer' }}
+                  >
                       Limpiar Filtros
                   </button>
               </aside>
 
-              {/* CONTENIDO PRINCIPAL */}
-              <div style={{ flex: '1 1 600px', display: 'flex', flexDirection: 'column' }}>
+              {/* COLUMNA DE RESULTADOS */}
+              <div style={{ flex: '1 1 600px', display: 'flex', flexDirection: 'column', width: '100%' }}>
                   
-                  {/* CABECERA Y TOGGLE DE VISTA */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
                     <h1 style={{ fontSize: '1.8rem', fontWeight: '900', color: '#020617', margin: 0, letterSpacing: '-1px' }}>
                         {filtradas.length} inmuebles encontrados
                     </h1>
 
-                    {/* Selector Grilla / Mapa */}
                     <div style={{ display: 'flex', backgroundColor: '#e2e8f0', padding: '4px', borderRadius: '12px' }}>
-                        <button 
-                          onClick={() => setVistaActiva('grilla')} 
-                          style={{ padding: '8px 16px', borderRadius: '10px', border: 'none', fontWeight: '800', fontSize: '0.85rem', cursor: 'pointer', backgroundColor: vistaActiva === 'grilla' ? 'white' : 'transparent', color: vistaActiva === 'grilla' ? '#4F46E5' : '#64748b', boxShadow: vistaActiva === 'grilla' ? '0 2px 5px rgba(0,0,0,0.1)' : 'none', transition: '0.2s' }}
-                        >
-                          ⏹️ Grilla
-                        </button>
-                        <button 
-                          onClick={() => setVistaActiva('mapa')} 
-                          style={{ padding: '8px 16px', borderRadius: '10px', border: 'none', fontWeight: '800', fontSize: '0.85rem', cursor: 'pointer', backgroundColor: vistaActiva === 'mapa' ? 'white' : 'transparent', color: vistaActiva === 'mapa' ? '#4F46E5' : '#64748b', boxShadow: vistaActiva === 'mapa' ? '0 2px 5px rgba(0,0,0,0.1)' : 'none', transition: '0.2s' }}
-                        >
-                          🗺️ Mapa
-                        </button>
+                        <button onClick={() => setVistaActiva('grilla')} style={{ padding: '8px 16px', borderRadius: '10px', border: 'none', fontWeight: '800', fontSize: '0.85rem', cursor: 'pointer', backgroundColor: vistaActiva === 'grilla' ? 'white' : 'transparent', color: vistaActiva === 'grilla' ? '#4F46E5' : '#64748b', boxShadow: vistaActiva === 'grilla' ? '0 2px 5px rgba(0,0,0,0.1)' : 'none', transition: '0.2s' }}>⏹️ Grilla</button>
+                        <button onClick={() => setVistaActiva('mapa')} style={{ padding: '8px 16px', borderRadius: '10px', border: 'none', fontWeight: '800', fontSize: '0.85rem', cursor: 'pointer', backgroundColor: vistaActiva === 'mapa' ? 'white' : 'transparent', color: vistaActiva === 'mapa' ? '#4F46E5' : '#64748b', boxShadow: vistaActiva === 'mapa' ? '0 2px 5px rgba(0,0,0,0.1)' : 'none', transition: '0.2s' }}>🗺️ Mapa</button>
                     </div>
                   </div>
 
-                  {/* RESULTADOS O MAPA */}
                   {cargando ? (
                       <div style={{ textAlign: 'center', padding: '100px', color: '#94a3b8', fontWeight: '800' }}>Cargando catálogo...</div>
                   ) : filtradas.length === 0 ? (
@@ -199,59 +194,35 @@ export default function CatalogoAvanzado() {
                           <p style={{ color: '#64748b', fontWeight: '800', fontSize: '1.2rem' }}>No hay propiedades que coincidan con estos filtros.</p>
                       </div>
                   ) : vistaActiva === 'mapa' ? (
-                      
-                      // VISTA MAPA
                       <div style={{ width: '100%', height: '75vh', borderRadius: '32px', overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', position: 'relative' }}>
-                          {/* Disclaimer sobre el mapa iframe básico */}
-                          <div style={{ position: 'absolute', top: '15px', left: '50%', transform: 'translateX(-50%)', backgroundColor: 'rgba(255,255,255,0.9)', padding: '10px 20px', borderRadius: '20px', fontWeight: '700', fontSize: '0.8rem', color: '#64748b', zIndex: 10, boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
-                            Mostrando área general de los resultados
-                          </div>
-                          <iframe 
-                            width="100%" 
-                            height="100%" 
-                            style={{ border: 0 }}
-                            src={mapUrl}
-                            allowFullScreen
-                          ></iframe>
+                          <iframe width="100%" height="100%" style={{ border: 0 }} src={mapUrl} allowFullScreen></iframe>
                       </div>
-
                   ) : (
-                      
-                      // VISTA GRILLA
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '30px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '25px' }}>
                       {filtradas.map(p => (
                           <div key={p.id} style={{ position: 'relative' }}>
-                            <button 
-                              onClick={(e) => toggleFavorito(e, p.id)}
-                              style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 20, backgroundColor: 'white', border: 'none', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', fontSize: '1.2rem', transition: '0.2s', transform: favoritos.includes(p.id) ? 'scale(1.1)' : 'scale(1)' }}
-                            >
+                            <button onClick={(e) => toggleFavorito(e, p.id)} style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 20, backgroundColor: 'white', border: 'none', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', fontSize: '1.2rem', transition: '0.2s', transform: favoritos.includes(p.id) ? 'scale(1.1)' : 'scale(1)' }}>
                               {favoritos.includes(p.id) ? '❤️' : '🤍'}
                             </button>
 
                             <Link href={`/propiedad/${p.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
                             <div style={{ backgroundColor: 'white', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0', transition: '0.3s' }}>
-                                
-                                <div style={{ height: '240px', position: 'relative' }}>
+                                <div style={{ height: '220px', position: 'relative' }}>
                                     <div style={{ position: 'absolute', top: '15px', left: '15px', backgroundColor: '#4F46E5', color: 'white', padding: '5px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: '900', zIndex: 10 }}>VENTA</div>
                                     {p.estado_interno !== 'Disponible' && (
                                         <div style={{ position: 'absolute', top: '45px', left: '15px', backgroundColor: p.estado_interno === 'Reservada' ? '#f59e0b' : '#ef4444', color: 'white', padding: '5px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: '900', zIndex: 10 }}>{p.estado_interno?.toUpperCase()}</div>
                                     )}
-                                    
                                     <div style={{ position: 'absolute', bottom: '15px', left: '15px', backgroundColor: 'white', padding: '8px 16px', borderRadius: '12px', fontWeight: '900', fontSize: '1.1rem', color: '#020617' }}>
                                         {p.precio > 0 ? `${p.moneda} ${Number(p.precio).toLocaleString('es-AR')}` : 'Consultar Precio'}
                                     </div>
-                                    
                                     <img src={p.imagenes?.[0]} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                 </div>
-
                                 <div style={{ padding: '20px' }}>
                                     <p style={{ color: '#F59E0B', fontSize: '0.8rem', margin: '0 0 8px', fontWeight: '800', textTransform: 'uppercase' }}>📍 {p.zona}</p>
                                     <h3 style={{ fontSize: '1.2rem', fontWeight: '900', color: '#020617', margin: '0 0 15px', lineHeight: 1.3, height: '3.1rem', overflow: 'hidden' }}>{p.titulo}</h3>
-                                    
                                     <div style={{ display: 'flex', gap: '15px', borderTop: '1px solid #f1f5f9', paddingTop: '15px', color: '#64748b', fontWeight: '700', fontSize: '0.85rem' }}>
                                         {p.habitaciones > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span>🛏️</span> {p.habitaciones} Dorm.</span>}
                                         {p.banos > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span>🚿</span> {p.banos} Baños</span>}
-                                        {p.metros_cuadrados > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span>📐</span> {p.metros_cuadrados} m²</span>}
                                     </div>
                                 </div>
                             </div>
@@ -263,6 +234,21 @@ export default function CatalogoAvanzado() {
               </div>
           </div>
       </div>
+
+      {/* MAGIA CSS PARA CELULARES */}
+      <style>{`
+        @media (max-width: 800px) {
+          .btn-filtros-movil { display: block !important; }
+          .sidebar-filtros { 
+            display: none !important; 
+            max-width: 100% !important; /* Que ocupe toda la pantalla */
+            position: static !important; /* Despegamos el sticky en celular */
+            margin-bottom: 20px;
+          }
+          .sidebar-filtros.abierto { display: block !important; }
+          .layout-principal { flex-direction: column !important; }
+        }
+      `}</style>
     </main>
   )
 }
