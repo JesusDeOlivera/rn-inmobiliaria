@@ -375,7 +375,7 @@ export default function Home() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {[
                 { bg: '#F8FAFC', border: '#e2e8f0', color: 'inherit', icon: '📍', title: 'Oficina', desc: 'Posadas, Misiones (Con cita previa)' },
-                { bg: '#DCFCE7', border: 'transparent', color: '#16A34A', icon: '💬', title: 'WhatsApp', desc: '+54 9 376 506-7519' },
+                { bg: '#DCFCE7', border: 'transparent', color: '#16A34A', icon: '💬', title: 'WhatsApp', desc: '+54 9 376 417-0186' },
               ].map((item, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                   <div style={{ width: '48px', height: '48px', minWidth: '48px', backgroundColor: item.bg, borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', border: `1px solid ${item.border}`, color: item.color }}>
