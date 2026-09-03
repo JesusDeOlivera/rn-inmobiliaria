@@ -1,128 +1,76 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { supabase } from '../lib/supabase'
+import { listarPropiedades } from '../lib/propiedades'
+import { formatPrecio, imagenPrincipal, waLink } from '../lib/format'
+import { OFICINA, WHATSAPP_PRINCIPAL } from '../lib/config'
+import Foto from '../components/Foto'
 
 export default function Home() {
-  const router = useRouter()
   const [propiedades, setPropiedades] = useState([])
-  const [sesion, setSesion] = useState(null)
   const [formContacto, setFormContacto] = useState({ nombre: '', email: '', mensaje: '' })
-  const [favoritos, setFavoritos] = useState([])
-  const [menuAbierto, setMenuAbierto] = useState(false)
+  const [enviando, setEnviando] = useState(false)
+  const [feedback, setFeedback] = useState(null) // { tipo: 'ok'|'error', texto }
 
   useEffect(() => {
-    const fetchHomeProps = async () => {
-      const { data } = await supabase
-        .from('propiedades')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(3)
-      if (data) setPropiedades(data)
+    let activo = true
+    listarPropiedades(supabase, { limite: 3 }).then(({ data }) => {
+      if (activo && data) setPropiedades(data)
+    })
+    return () => {
+      activo = false
     }
-    fetchHomeProps()
-
-    supabase.auth.getSession().then(({ data: { session } }) => setSesion(session))
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSesion(session))
-    return () => subscription.unsubscribe()
   }, [])
 
-  // Cerrar menú al hacer tap afuera
-  useEffect(() => {
-    if (!menuAbierto) return
-    const handler = () => setMenuAbierto(false)
-    document.addEventListener('click', handler)
-    return () => document.removeEventListener('click', handler)
-  }, [menuAbierto])
-
   const scrollToSection = (id) => {
-    setMenuAbierto(false)
-    const element = document.getElementById(id)
-    if (element) element.scrollIntoView({ behavior: 'smooth' })
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.refresh()
-  }
-
-  const enviarFormulario = (e) => {
+  const enviarFormulario = async (e) => {
     e.preventDefault()
+    setEnviando(true)
+    setFeedback(null)
+
+    // 1) Guardamos el lead en la base (aunque el usuario no tenga WhatsApp).
+    const { error } = await supabase.from('consultas').insert([
+      {
+        nombre: formContacto.nombre,
+        email: formContacto.email,
+        mensaje: formContacto.mensaje,
+        origen: 'home',
+      },
+    ])
+
+    setEnviando(false)
+
+    if (error) {
+      setFeedback({
+        tipo: 'error',
+        texto: 'No pudimos registrar tu mensaje. Escribinos directo por WhatsApp.',
+      })
+    } else {
+      setFeedback({ tipo: 'ok', texto: '¡Listo! Te vamos a contactar a la brevedad.' })
+      setFormContacto({ nombre: '', email: '', mensaje: '' })
+    }
+
+    // 2) Abrimos WhatsApp con el mensaje pre-cargado.
     const texto = `Hola RN Inmobiliaria. Soy ${formContacto.nombre}.\nMi Email: ${formContacto.email}\n\nMensaje: ${formContacto.mensaje}`
-    window.open(`https://wa.me/5493764170186?text=${encodeURIComponent(texto)}`, '_blank')
-    setFormContacto({ nombre: '', email: '', mensaje: '' })
+    window.open(waLink(WHATSAPP_PRINCIPAL, texto), '_blank', 'noopener')
   }
 
   return (
     <main style={{ minHeight: '100vh', backgroundColor: '#ffffff', fontFamily: 'system-ui, sans-serif' }}>
 
       <style>{`
-        /* ── Reset mobile ── */
         *, *::before, *::after { box-sizing: border-box; }
-        input, textarea, select { font-size: 16px !important; } /* Evita zoom en iOS */
+        input, textarea, select { font-size: 16px !important; }
 
-        /* ── Navbar ── */
-        .nav-links a, .nav-links button {
-          color: #64748b; font-weight: 700; font-size: 0.9rem;
-          text-decoration: none; padding: 10px 14px; border-radius: 10px;
-          display: block; white-space: nowrap;
-          min-height: 44px; display: flex; align-items: center;
-        }
-        .nav-links a:active { background: #f1f5f9; }
-
-        /* ── Menú móvil ── */
-        .mobile-menu {
-          display: none;
-          position: absolute; top: 80px; left: 0; right: 0;
-          background: white; border-bottom: 1px solid #f1f5f9;
-          padding: 12px 5%; flex-direction: column; gap: 4px;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-          z-index: 99;
-        }
-        .mobile-menu.open { display: flex; }
-        .mobile-menu a, .mobile-menu button {
-          color: #020617; font-weight: 700; font-size: 1rem;
-          text-decoration: none; padding: 14px 16px; border-radius: 12px;
-          min-height: 48px; display: flex; align-items: center;
-          border: none; background: none; cursor: pointer; width: 100%;
-          -webkit-tap-highlight-color: transparent;
-        }
-        .mobile-menu a:active, .mobile-menu button:active { background: #f8fafc; }
-
-        /* ── Botón hamburguesa ── */
-        .hamburger {
-          display: none; flex-direction: column; justify-content: center;
-          align-items: center; gap: 5px;
-          width: 44px; height: 44px; border: none; background: none;
-          cursor: pointer; padding: 8px; border-radius: 10px;
-          -webkit-tap-highlight-color: transparent;
-        }
-        .hamburger span {
-          display: block; width: 22px; height: 2px;
-          background: #020617; border-radius: 2px;
-          transition: transform 0.25s, opacity 0.25s;
-        }
-        .hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
-        .hamburger.open span:nth-child(2) { opacity: 0; }
-        .hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
-
-        /* Desktop: mostrar links en línea, ocultar hamburguesa */
-        @media (min-width: 768px) {
-          .hamburger { display: none !important; }
-          .desktop-links { display: flex !important; }
-        }
-        /* Móvil: ocultar links de desktop, mostrar hamburguesa */
         @media (max-width: 767px) {
-          .hamburger { display: flex !important; }
-          .desktop-links { display: none !important; }
           .hide-mobile { display: none !important; }
         }
 
-        /* ── Hero ── */
-        .hero-section {
-          padding: 80px 6% 80px;
-        }
+        .hero-section { padding: 80px 6% 80px; }
         .hero-title {
           font-size: clamp(2.4rem, 8vw, 5rem);
           font-weight: 900; color: white;
@@ -149,7 +97,6 @@ export default function Home() {
         }
         .hero-btn-secondary:active { background: rgba(255,255,255,0.08); }
 
-        /* ── Cards propiedades ── */
         .props-grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
@@ -172,7 +119,6 @@ export default function Home() {
         .prop-body { padding: 24px; }
         @media (min-width: 768px) { .prop-body { padding: 32px; } }
 
-        /* ── Sección servicios ── */
         .services-grid {
           display: grid;
           grid-template-columns: 1fr;
@@ -185,16 +131,10 @@ export default function Home() {
           border: 1px solid #e2e8f0; box-shadow: 0 10px 30px rgba(0,0,0,0.03);
         }
 
-        /* ── Historia ── */
-        .historia-wrap {
-          display: flex; gap: 60px; flex-wrap: wrap; align-items: center;
-        }
+        .historia-wrap { display: flex; gap: 60px; flex-wrap: wrap; align-items: center; }
         .historia-text, .historia-cards { flex: 1; min-width: min(100%, 320px); }
 
-        /* ── Contacto ── */
-        .contacto-wrap {
-          display: flex; gap: 50px; flex-wrap: wrap; align-items: flex-start;
-        }
+        .contacto-wrap { display: flex; gap: 50px; flex-wrap: wrap; align-items: flex-start; }
         .contacto-info, .contacto-form { flex: 1; min-width: min(100%, 320px); }
         .form-input {
           width: 100%; padding: 16px; border-radius: 14px;
@@ -212,15 +152,11 @@ export default function Home() {
           color: #64748b; margin-bottom: 8px;
         }
 
-        /* ── Sección padding adaptable ── */
         .section-pad { padding: 70px 6%; }
         @media (min-width: 768px) { .section-pad { padding: 100px 8%; } }
-
-        /* ── Footer ── */
         .footer-pad { padding: 70px 6%; }
         @media (min-width: 768px) { .footer-pad { padding: 100px 8%; } }
 
-        /* ── Títulos de sección ── */
         .section-title {
           font-size: clamp(1.8rem, 5vw, 3rem);
           font-weight: 900; color: #020617;
@@ -229,11 +165,8 @@ export default function Home() {
         .section-subtitle { color: #64748b; font-size: 1.05rem; font-weight: 500; margin-top: 10px; }
       `}</style>
 
-      {/* ══════════════════════════════════════
-          HERO
-      ══════════════════════════════════════ */}
+      {/* HERO */}
       <section className="hero-section" style={{ backgroundColor: '#020617', position: 'relative', overflow: 'hidden', textAlign: 'center' }}>
-        {/* Glow de fondo */}
         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '500px', height: '500px', backgroundColor: 'rgba(180,83,9,0.15)', filter: 'blur(130px)', borderRadius: '100%', pointerEvents: 'none' }} />
 
         <div style={{ position: 'relative', zIndex: 2, maxWidth: '800px', margin: '0 auto' }}>
@@ -247,14 +180,12 @@ export default function Home() {
           </p>
           <div className="hero-buttons">
             <Link href="/propiedades" className="hero-btn-primary">Buscar Propiedades</Link>
-            <button className="hero-btn-secondary" onClick={() => scrollToSection('contacto')}>Escribinos</button>
+            <button type="button" className="hero-btn-secondary" onClick={() => scrollToSection('contacto')}>Escribinos</button>
           </div>
         </div>
       </section>
 
-      {/* ══════════════════════════════════════
-          PROPIEDADES DESTACADAS
-      ══════════════════════════════════════ */}
+      {/* PROPIEDADES DESTACADAS */}
       <section className="section-pad" style={{ maxWidth: '1450px', margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
@@ -271,17 +202,14 @@ export default function Home() {
             <Link href={`/propiedad/${p.id}`} key={p.id} style={{ textDecoration: 'none', color: 'inherit' }}>
               <div className="prop-card">
                 <div className="prop-img-wrap">
-                  {/* Badge tipo */}
                   <div style={{ position: 'absolute', top: '16px', left: '16px', backgroundColor: '#22c55e', color: 'white', padding: '6px 14px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: '900', zIndex: 10 }}>VENTA</div>
-                  {/* Badge estado */}
                   {p.estado_interno !== 'Disponible' && (
                     <div style={{ position: 'absolute', top: '16px', right: '16px', backgroundColor: '#ef4444', color: 'white', padding: '6px 14px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: '900', zIndex: 10 }}>{p.estado_interno?.toUpperCase()}</div>
                   )}
-                  {/* Precio */}
                   <div style={{ position: 'absolute', bottom: '16px', left: '16px', backgroundColor: 'white', padding: '10px 18px', borderRadius: '16px', fontWeight: '900', fontSize: 'clamp(1.1rem, 3vw, 1.5rem)', color: '#020617', boxShadow: '0 8px 20px rgba(0,0,0,0.15)', zIndex: 10 }}>
-                    {p.moneda} {Number(p.precio).toLocaleString('es-AR')}
+                    {formatPrecio(p)}
                   </div>
-                  <img src={p.imagenes?.[0]} alt={p.titulo} className="prop-img" loading="lazy" />
+                  <Foto src={imagenPrincipal(p)} alt={p.titulo} sizes="(max-width: 768px) 100vw, 400px" />
                 </div>
                 <div className="prop-body">
                   <span style={{ color: '#F59E0B', fontWeight: '900', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1.5px' }}>📍 {p.zona}</span>
@@ -297,9 +225,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ══════════════════════════════════════
-          SERVICIOS
-      ══════════════════════════════════════ */}
+      {/* SERVICIOS */}
       <section id="servicios" className="section-pad" style={{ backgroundColor: '#f8fafc' }}>
         <div style={{ textAlign: 'center', marginBottom: '50px' }}>
           <span style={{ color: '#4F46E5', fontWeight: '900', fontSize: '0.85rem', letterSpacing: '2px', textTransform: 'uppercase' }}>Qué hacemos</span>
@@ -327,9 +253,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ══════════════════════════════════════
-          HISTORIA
-      ══════════════════════════════════════ */}
+      {/* HISTORIA */}
       <section className="section-pad" style={{ maxWidth: '1400px', margin: '0 auto' }}>
         <div className="historia-wrap">
           <div className="historia-text">
@@ -360,12 +284,9 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ══════════════════════════════════════
-          CONTACTO
-      ══════════════════════════════════════ */}
-      <section id="contacto" className="section-pad" style={{ maxWidth: '1400px', margin: '0 auto' }}>
+      {/* CONTACTO */}
+      <section id="contacto" className="section-pad" style={{ maxWidth: '1400px', margin: '0 auto', scrollMarginTop: '90px' }}>
         <div className="contacto-wrap">
-          {/* Info */}
           <div className="contacto-info">
             <span style={{ color: '#4F46E5', fontWeight: '900', fontSize: '0.85rem', letterSpacing: '2px', textTransform: 'uppercase', backgroundColor: '#EEF2FF', padding: '8px 16px', borderRadius: '12px' }}>Contacto</span>
             <h2 className="section-title" style={{ margin: '20px 0 24px', lineHeight: 1 }}>¿Listo para dar el siguiente paso?</h2>
@@ -374,8 +295,8 @@ export default function Home() {
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {[
-                { bg: '#F8FAFC', border: '#e2e8f0', color: 'inherit', icon: '📍', title: 'Oficina', desc: 'Posadas, Misiones (Con cita previa)' },
-                { bg: '#DCFCE7', border: 'transparent', color: '#16A34A', icon: '💬', title: 'WhatsApp', desc: '+54 9 376 417-0186' },
+                { bg: '#F8FAFC', border: '#e2e8f0', color: 'inherit', icon: '📍', title: 'Oficina', desc: OFICINA.ciudad },
+                { bg: '#DCFCE7', border: 'transparent', color: '#16A34A', icon: '💬', title: 'WhatsApp', desc: OFICINA.whatsappDisplay },
               ].map((item, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                   <div style={{ width: '48px', height: '48px', minWidth: '48px', backgroundColor: item.bg, borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', border: `1px solid ${item.border}`, color: item.color }}>
@@ -390,36 +311,42 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Formulario */}
           <div className="contacto-form">
             <form onSubmit={enviarFormulario} style={{ backgroundColor: 'white', padding: 'clamp(24px, 5vw, 44px)', borderRadius: '28px', boxShadow: '0 20px 50px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <h3 style={{ fontSize: 'clamp(1.4rem, 4vw, 1.8rem)', fontWeight: '900', color: '#020617', margin: '0 0 4px' }}>Envianos un mensaje</h3>
 
+              {feedback && (
+                <p role="status" style={{
+                  margin: 0, padding: '12px 16px', borderRadius: '12px', fontWeight: 700, fontSize: '0.9rem',
+                  backgroundColor: feedback.tipo === 'ok' ? '#dcfce7' : '#fee2e2',
+                  color: feedback.tipo === 'ok' ? '#166534' : '#991b1b',
+                }}>
+                  {feedback.texto}
+                </p>
+              )}
+
               <div>
-                <label className="form-label">Nombre completo *</label>
+                <label className="form-label" htmlFor="c-nombre">Nombre completo *</label>
                 <input
-                  required className="form-input"
+                  id="c-nombre" required className="form-input"
                   value={formContacto.nombre}
                   onChange={e => setFormContacto({ ...formContacto, nombre: e.target.value })}
-                  type="text" placeholder="Juan Pérez"
-                  autoComplete="name"
+                  type="text" placeholder="Juan Pérez" autoComplete="name"
                 />
               </div>
               <div>
-                <label className="form-label">Email *</label>
+                <label className="form-label" htmlFor="c-email">Email *</label>
                 <input
-                  required className="form-input"
+                  id="c-email" required className="form-input"
                   value={formContacto.email}
                   onChange={e => setFormContacto({ ...formContacto, email: e.target.value })}
-                  type="email" placeholder="juan@ejemplo.com"
-                  autoComplete="email"
-                  inputMode="email"
+                  type="email" placeholder="juan@ejemplo.com" autoComplete="email" inputMode="email"
                 />
               </div>
               <div>
-                <label className="form-label">Mensaje *</label>
+                <label className="form-label" htmlFor="c-mensaje">Mensaje *</label>
                 <textarea
-                  required className="form-input"
+                  id="c-mensaje" required className="form-input"
                   value={formContacto.mensaje}
                   onChange={e => setFormContacto({ ...formContacto, mensaje: e.target.value })}
                   placeholder="Me interesa tasar mi propiedad..."
@@ -429,31 +356,27 @@ export default function Home() {
 
               <button
                 type="submit"
-                style={{ backgroundColor: '#4F46E5', color: 'white', padding: '18px', borderRadius: '14px', fontWeight: '900', fontSize: '1rem', border: 'none', cursor: 'pointer', marginTop: '4px', boxShadow: '0 8px 20px rgba(79,70,229,0.3)', minHeight: '52px', transition: 'opacity 0.15s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                onTouchStart={e => e.currentTarget.style.opacity = '0.85'}
-                onTouchEnd={e => e.currentTarget.style.opacity = '1'}
+                disabled={enviando}
+                style={{ backgroundColor: '#4F46E5', color: 'white', padding: '18px', borderRadius: '14px', fontWeight: '900', fontSize: '1rem', border: 'none', cursor: enviando ? 'default' : 'pointer', opacity: enviando ? 0.7 : 1, marginTop: '4px', boxShadow: '0 8px 20px rgba(79,70,229,0.3)', minHeight: '52px', touchAction: 'manipulation' }}
               >
-                Enviar a WhatsApp 💬
+                {enviando ? 'Enviando...' : 'Enviar a WhatsApp 💬'}
               </button>
             </form>
           </div>
         </div>
       </section>
 
-      {/* ══════════════════════════════════════
-          FOOTER
-      ══════════════════════════════════════ */}
+      {/* FOOTER */}
       <footer className="footer-pad" style={{ backgroundColor: '#020617', color: 'white', textAlign: 'center' }}>
         <h2 style={{ fontSize: 'clamp(1.6rem, 5vw, 2.5rem)', fontWeight: '900', marginBottom: '20px', letterSpacing: '-1px' }}>RN INMOBILIARIA</h2>
         <p style={{ color: '#94a3b8', fontSize: 'clamp(1rem, 2.5vw, 1.2rem)', maxWidth: '520px', margin: '0 auto 44px', lineHeight: 1.8 }}>
           Tu futuro hogar en la tierra roja comienza con un asesoramiento de confianza.
         </p>
 
-        {/* WhatsApp CTA */}
         <a
-          href="https://wa.me/5493764170186?text=Hola%20RN%20Inmobiliaria.%20Estoy%20interesado%20en%20sus%20servicios.%20Me%20gustaría%20saber%20más."
+          href={waLink(WHATSAPP_PRINCIPAL, 'Hola RN Inmobiliaria. Estoy interesado en sus servicios. Me gustaría saber más.')}
           target="_blank" rel="noopener noreferrer"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', backgroundColor: '#25D366', color: 'white', padding: '16px 32px', borderRadius: '16px', fontWeight: '800', fontSize: '1rem', textDecoration: 'none', marginBottom: '44px', minHeight: '52px', WebkitTapHighlightColor: 'transparent' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', backgroundColor: '#25D366', color: 'white', padding: '16px 32px', borderRadius: '16px', fontWeight: '800', fontSize: '1rem', textDecoration: 'none', marginBottom: '44px', minHeight: '52px' }}
         >
           💬 Escribinos por WhatsApp
         </a>

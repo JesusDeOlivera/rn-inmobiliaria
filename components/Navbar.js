@@ -1,42 +1,28 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useSesion } from '../lib/useSesion'
+import { useFavoritos } from '../lib/useFavoritos'
 
 export default function Navbar() {
   const pathname = usePathname()
-  const [sesion, setSesion] = useState(null)
-  const [favoritos, setFavoritos] = useState([])
+  const { sesion } = useSesion()
+  const { favoritos } = useFavoritos()
   const [abierto, setAbierto] = useState(false)
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setSesion(session))
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setSesion(session))
-    
-    const cargarFavs = () => {
-      const ids = JSON.parse(localStorage.getItem('rn_favoritos') || '[]')
-      setFavoritos(ids)
-    }
-
-    cargarFavs()
-    window.addEventListener('storage', cargarFavs)
-    
-    return () => {
-      subscription.unsubscribe()
-      window.removeEventListener('storage', cargarFavs)
-    }
-  }, [])
-
-  useEffect(() => {
+  // Cerrar el menú cuando cambia la ruta (patrón render-time de React:
+  // ajustar estado a partir de un valor previo, sin useEffect).
+  const [rutaPrevia, setRutaPrevia] = useState(pathname)
+  if (pathname !== rutaPrevia) {
+    setRutaPrevia(pathname)
     setAbierto(false)
-  }, [pathname])
+  }
 
   useEffect(() => {
-    if (abierto) {
-      document.body.style.overflow = 'hidden'
-    } else {
+    document.body.style.overflow = abierto ? 'hidden' : ''
+    return () => {
       document.body.style.overflow = ''
     }
   }, [abierto])
