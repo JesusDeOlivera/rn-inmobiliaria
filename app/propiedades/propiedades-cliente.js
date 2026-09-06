@@ -23,7 +23,7 @@ export default function PropiedadesCliente({ propiedades }) {
       const q = busquedaDebounced.toLowerCase()
       temp = temp.filter((p) => p.titulo?.toLowerCase().includes(q))
     }
-    if (zona !== 'Todas') temp = temp.filter((p) => p.zona === zona)
+    if (zona !== 'Todas') temp = temp.filter((p) => p.barrio === zona)
     if (tipo !== 'Todos') temp = temp.filter((p) => p.tipo === tipo)
     return temp
   }, [busquedaDebounced, tipo, zona, propiedades])

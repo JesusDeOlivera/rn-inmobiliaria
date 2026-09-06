@@ -1,0 +1,72 @@
+-- ============================================================
+--  RN Inmobiliaria — Modelo relacional derivado del DER (AE1)
+--
+--  Pasaje del modelo conceptual (Chen) al relacional. Las migraciones
+--  ya están aplicadas en el proyecto Supabase daipvxjkxfxfsmwsoxfr;
+--  este archivo documenta el resultado y permite recrearlo.
+--
+--  Correspondencia DER -> tablas
+--  ---------------------------------------------------------------
+--  USUARIO (superclase ISA) ....... usuarios
+--    contraseña ................... NO se persiste acá: la maneja
+--                                   Supabase Auth (auth.users). El
+--                                   vínculo es usuarios.auth_user_id.
+--    telefono (multivaluado) ...... usuario_telefonos
+--  CLIENTE / AGENTE / ADMIN ....... clientes / agentes / administradores
+--    (ISA total y disjunta: `usuarios.rol` + triggers de coherencia)
+--  LOCALIDAD ...................... localidades
+--  BARRIO ......................... barrios          (FK a localidades)
+--  TIPO_INMUEBLE .................. tipos_inmueble
+--  PROPIEDAD ...................... propiedades
+--    direccion (compuesto) ........ columnas calle + altura
+--    precio_pesos (derivado) ...... NO se almacena: se calcula en la
+--                                   vista v_propiedades con cotizaciones
+--  IMAGEN (débil) ................. imagenes  PK(id_propiedad, nro_orden)
+--  FAVORITO (asociativa) .......... favoritos PK(id_cliente, id_propiedad)
+--  CONSULTA (asociativa) .......... consultas
+--
+--  Reglas de negocio implementadas
+--  ---------------------------------------------------------------
+--  RN-02  barrio obligatorio ...... propiedades.id_barrio NOT NULL
+--  RN-03  moneda USD/ARS .......... CHECK propiedades_moneda_valida
+--  RN-04  agente obligatorio ...... propiedades.id_agente NOT NULL
+--  RN-05  consulta solo si         
+--         está Disponible ......... trigger trg_consulta_solo_disponible
+--  RN-06  una sola portada ........ índice único parcial imagenes_una_portada_idx
+--  RN-08  precio_pesos derivado ... vista v_propiedades + fn_cotizacion_vigente()
+--  RN-09  solo autenticados
+--         escriben catálogos ...... políticas RLS *_escritura_auth
+--
+--  Pendiente de limpieza (ver al final): las columnas viejas de
+--  `propiedades` (zona, tipo, imagenes, *_vendedor) siguen ahí como
+--  respaldo hasta validar en producción.
+-- ============================================================
+
+-- El detalle ejecutable de cada paso está en el historial de migraciones
+-- del proyecto (supabase migrations list), en este orden:
+--   der_01_catalogos_localidad_barrio_tipo
+--   der_02_isa_usuarios_cliente_agente_admin
+--   der_03_imagenes_favoritos_cotizaciones
+--   der_04_propiedades_fks_y_direccion_compuesta
+--   der_05_migrar_datos_existentes
+--   der_06_usuarios_desacoplar_de_auth
+--   der_07_consultas_asociativa_y_rn05
+--   der_08_participacion_obligatoria_y_vista
+--   der_09_rls_tablas_nuevas
+
+
+-- ------------------------------------------------------------
+-- LIMPIEZA PENDIENTE (NO ejecutar hasta validar en producción)
+-- ------------------------------------------------------------
+-- Una vez confirmado que el sitio y el panel funcionan solo con el
+-- modelo normalizado, se pueden eliminar las columnas redundantes:
+--
+--   alter table public.propiedades
+--     drop column zona,               -- reemplazada por id_barrio
+--     drop column tipo,               -- reemplazada por id_tipo
+--     drop column imagenes,           -- reemplazada por la tabla imagenes
+--     drop column nombre_vendedor,    -- reemplazadas por id_agente
+--     drop column telefono_vendedor,
+--     drop column email_vendedor,
+--     drop column vendedor_asignado,
+--     drop column estado;             -- duplica estado_interno

@@ -4,24 +4,23 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { supabase } from '../../lib/supabase'
-import { GRUPOS_BARRIOS, TIPOS_INMUEBLE, ESTADOS_PROPIEDAD } from '../../lib/barrios'
-import { CONTACTOS } from '../../lib/config'
+import { ESTADOS_PROPIEDAD } from '../../lib/barrios'
 import { formatPrecio, imagenPrincipal } from '../../lib/format'
 import { listarPropiedades } from '../../lib/propiedades'
+import { listarBarriosAgrupados, listarTipos, listarAgentes } from '../../lib/catalogos'
+import { guardarPropiedad, guardarImagenes, borrarPropiedad, cambiarEstado, cambiarPublicado } from '../../lib/admin'
 
-// Valores por defecto del formulario de alta.
+// Valores por defecto del formulario. Ahora usa las claves foráneas del
+// modelo normalizado (id_barrio, id_tipo, id_agente) en vez de texto libre.
 const FORM_VACIO = {
   titulo: '', descripcion: '', precio: '', moneda: 'USD',
-  tipo: 'Casa Usada', zona: 'Centro', imagenes: [],
-  habitaciones: '', banos: '', metros_cuadrados: '', direccion: '',
+  id_tipo: '', id_barrio: '', id_agente: '',
+  imagenes: [], imagenesActuales: [],
+  dormitorios: '', banos: '', superficie_m2: '', direccion: '',
   latitud: null, longitud: null,
-  estado_interno: 'Disponible',
+  estado: 'Disponible',
   publicado: true,
   destacado: false,
-  vendedor_asignado: 'papa',
-  nombre_vendedor: CONTACTOS.papa.nombre,
-  telefono_vendedor: CONTACTOS.papa.tel,
-  email_vendedor: CONTACTOS.papa.email,
 }
 
 export default function AdminPanel() {
@@ -36,6 +35,11 @@ export default function AdminPanel() {
   const [ubicacionHallada, setUbicacionHallada] = useState(null)
   const [aBorrar, setABorrar] = useState(null) // propiedad pendiente de confirmación
 
+  // Catálogos traídos de la base (RN-09: los gestiona el administrador).
+  const [gruposBarrios, setGruposBarrios] = useState([])
+  const [tipos, setTipos] = useState([])
+  const [agentes, setAgentes] = useState([])
+
   const [formData, setFormData] = useState(FORM_VACIO)
 
   const avisar = (texto, tipo = 'ok') => {
@@ -47,12 +51,23 @@ export default function AdminPanel() {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) router.push('/login')
-      else { setAutorizado(true); fetchPropiedades() }
+      else { setAutorizado(true); fetchPropiedades(); fetchCatalogos() }
     }
     checkUser()
     // Solo al montar: verifica sesión y hace la carga inicial.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router])
+
+  const fetchCatalogos = async () => {
+    const [b, t, a] = await Promise.all([
+      listarBarriosAgrupados(supabase),
+      listarTipos(supabase),
+      listarAgentes(supabase),
+    ])
+    setGruposBarrios(b.data)
+    setTipos(t.data)
+    setAgentes(a.data)
+  }
 
   // El panel ve TODO, incluidas las no publicadas (a diferencia del sitio público).
   const fetchPropiedades = async () => {
@@ -70,24 +85,28 @@ export default function AdminPanel() {
     if (e.target.files) setFormData({ ...formData, imagenes: Array.from(e.target.files) })
   }
 
-  const handleVendedorChange = (val) => {
-    setFormData({
-      ...formData,
-      vendedor_asignado: val,
-      nombre_vendedor: CONTACTOS[val].nombre,
-      telefono_vendedor: CONTACTOS[val].tel,
-      email_vendedor: CONTACTOS[val].email,
-    })
-  }
-
   const prepararEdicion = (p) => {
+    // `p` viene de la vista v_propiedades: mapeamos a los campos del formulario.
     setFormData({
       ...FORM_VACIO,
-      ...p,
-      // La base permite null en estos campos; el formulario necesita booleanos.
+      titulo: p.titulo || '',
+      descripcion: p.descripcion || '',
+      precio: p.precio ?? '',
+      moneda: p.moneda || 'USD',
+      id_tipo: p.id_tipo ?? '',
+      id_barrio: p.id_barrio ?? '',
+      id_agente: p.id_agente ?? '',
+      dormitorios: p.dormitorios ?? '',
+      banos: p.banos ?? '',
+      superficie_m2: p.superficie_m2 ?? '',
+      direccion: p.direccion || '',
+      latitud: p.latitud ?? null,
+      longitud: p.longitud ?? null,
+      estado: p.estado || 'Disponible',
       publicado: p.publicado ?? true,
       destacado: p.destacado ?? false,
-      estado_interno: p.estado_interno || p.estado || 'Disponible',
+      imagenes: [],                       // solo si sube nuevas
+      imagenesActuales: p.imagenes || [], // las que ya tiene
     })
     setEditandoId(p.id)
     setUbicacionHallada(null)
@@ -103,6 +122,15 @@ export default function AdminPanel() {
   }
 
   // Pide las coordenadas al endpoint propio, que consulta Nominatim server-side.
+  /** Nombre del barrio elegido, para acotar la geocodificación. */
+  const nombreBarrio = () => {
+    for (const g of gruposBarrios) {
+      const b = g.barrios.find((x) => String(x.id) === String(formData.id_barrio))
+      if (b) return b.nombre
+    }
+    return ''
+  }
+
   const geocodificar = async (direccion, zona) => {
     const { data: { session } } = await supabase.auth.getSession()
     const res = await fetch('/api/geocodificar', {
@@ -123,7 +151,7 @@ export default function AdminPanel() {
     setUbicando(true)
     setUbicacionHallada(null)
     try {
-      const datos = await geocodificar(formData.direccion, formData.zona)
+      const datos = await geocodificar(formData.direccion, nombreBarrio())
       if (datos.encontrada) {
         setFormData((f) => ({ ...f, latitud: datos.lat, longitud: datos.lng }))
         setUbicacionHallada(datos)
@@ -140,55 +168,43 @@ export default function AdminPanel() {
     e.preventDefault()
     setCargando(true)
     try {
-      let finalImages = formData.imagenes
+      if (!formData.id_barrio || !formData.id_tipo || !formData.id_agente) {
+        throw new Error('Barrio, tipo y agente responsable son obligatorios.')
+      }
+
+      // 1) Subir las fotos nuevas, si las hay.
+      let urls = formData.imagenesActuales
       if (formData.imagenes.length > 0 && formData.imagenes[0] instanceof File) {
-        const imageUrls = []
+        const nuevas = []
         for (const file of formData.imagenes) {
           const fileName = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${file.name.split('.').pop()}`
           const { error: upErr } = await supabase.storage.from('imagenes_propiedades').upload(fileName, file)
           if (upErr) throw new Error('Subiendo imágenes: ' + upErr.message)
           const { data: { publicUrl } } = supabase.storage.from('imagenes_propiedades').getPublicUrl(fileName)
-          imageUrls.push(publicUrl)
+          nuevas.push(publicUrl)
         }
-        finalImages = imageUrls
+        urls = nuevas
       }
 
-      // Si hay dirección pero todavía no hay coordenadas, las buscamos ahora.
+      // 2) Geocodificar si falta la ubicación.
       let coords = { latitud: formData.latitud, longitud: formData.longitud }
       if (formData.direccion?.trim() && (coords.latitud == null || coords.longitud == null)) {
         try {
-          const datos = await geocodificar(formData.direccion, formData.zona)
+          const datos = await geocodificar(formData.direccion, nombreBarrio())
           if (datos.encontrada) coords = { latitud: datos.lat, longitud: datos.lng }
         } catch { /* sin coordenadas: la propiedad se guarda igual */ }
       }
 
-      const objetoPropiedad = {
-        ...formData,
-        precio: parseFloat(formData.precio) || 0,
-        habitaciones: parseInt(formData.habitaciones, 10) || 0,
-        banos: parseInt(formData.banos, 10) || 0,
-        metros_cuadrados: parseFloat(formData.metros_cuadrados) || 0,
-        imagenes: finalImages,
-        publicado: Boolean(formData.publicado),
-        destacado: Boolean(formData.destacado),
-        latitud: coords.latitud,
-        longitud: coords.longitud,
-        // `estado` es una columna legacy que duplica `estado_interno`.
-        estado: formData.estado_interno,
-      }
-      delete objetoPropiedad.id
-      delete objetoPropiedad.created_at
+      // 3) Guardar la propiedad y, aparte, su galería (entidad IMAGEN).
+      const { id, error } = await guardarPropiedad(
+        supabase, { ...formData, ...coords }, editandoId
+      )
+      if (error) throw new Error(error)
 
-      if (editandoId) {
-        const { error } = await supabase.from('propiedades').update(objetoPropiedad).eq('id', editandoId)
-        if (error) throw new Error(error.message)
-        avisar('Propiedad actualizada')
-      } else {
-        const { error } = await supabase.from('propiedades').insert([objetoPropiedad])
-        if (error) throw new Error(error.message)
-        avisar('Propiedad publicada')
-      }
+      const { error: errImgs } = await guardarImagenes(supabase, id, urls)
+      if (errImgs) throw new Error('Guardando la galería: ' + errImgs)
 
+      avisar(editandoId ? 'Propiedad actualizada' : 'Propiedad publicada')
       setEditandoId(null)
       setFormData(FORM_VACIO)
       fetchPropiedades()
@@ -200,28 +216,21 @@ export default function AdminPanel() {
   }
 
   const cambiarEstadoRapido = async (id, nuevoEstado) => {
-    // Mantenemos sincronizada la columna legacy `estado`.
-    const { error } = await supabase
-      .from('propiedades')
-      .update({ estado_interno: nuevoEstado, estado: nuevoEstado })
-      .eq('id', id)
-    if (error) avisar('Error: ' + error.message, 'error')
+    const { error } = await cambiarEstado(supabase, id, nuevoEstado)
+    if (error) avisar('Error: ' + error, 'error')
     fetchPropiedades()
   }
 
   const togglePublicado = async (p) => {
-    const { error } = await supabase
-      .from('propiedades')
-      .update({ publicado: !(p.publicado ?? true) })
-      .eq('id', p.id)
-    if (error) avisar('Error: ' + error.message, 'error')
+    const { error } = await cambiarPublicado(supabase, p.id, !(p.publicado ?? true))
+    if (error) avisar('Error: ' + error, 'error')
     fetchPropiedades()
   }
 
   const confirmarBorrado = async () => {
     if (!aBorrar) return
-    const { error } = await supabase.from('propiedades').delete().eq('id', aBorrar.id)
-    if (error) avisar('Error al borrar: ' + error.message, 'error')
+    const { error } = await borrarPropiedad(supabase, aBorrar.id)
+    if (error) avisar('Error al borrar: ' + error, 'error')
     else avisar('Propiedad eliminada')
     setABorrar(null)
     fetchPropiedades()
@@ -336,8 +345,8 @@ export default function AdminPanel() {
                 </div>
                 <div className="admin-campo">
                   <label className="etiqueta" htmlFor="a-estado">Estado</label>
-                  <select id="a-estado" className="campo" value={formData.estado_interno}
-                    onChange={(e) => setFormData({ ...formData, estado_interno: e.target.value })}>
+                  <select id="a-estado" className="campo" value={formData.estado}
+                    onChange={(e) => setFormData({ ...formData, estado: e.target.value })}>
                     {ESTADOS_PROPIEDAD.map((s) => <option key={s}>{s}</option>)}
                   </select>
                 </div>
@@ -345,21 +354,23 @@ export default function AdminPanel() {
 
               <div className="admin-fila">
                 <div className="admin-campo">
-                  <label className="etiqueta" htmlFor="a-zona">Zona / barrio</label>
-                  <select id="a-zona" className="campo" value={formData.zona}
-                    onChange={(e) => setFormData({ ...formData, zona: e.target.value, latitud: null, longitud: null })}>
-                    {GRUPOS_BARRIOS.map((g) => (
+                  <label className="etiqueta" htmlFor="a-barrio">Barrio</label>
+                  <select id="a-barrio" required className="campo" value={formData.id_barrio}
+                    onChange={(e) => setFormData({ ...formData, id_barrio: e.target.value, latitud: null, longitud: null })}>
+                    <option value="">Elegí un barrio…</option>
+                    {gruposBarrios.map((g) => (
                       <optgroup key={g.label} label={g.label}>
-                        {g.barrios.map((b) => <option key={b} value={b}>{b}</option>)}
+                        {g.barrios.map((b) => <option key={b.id} value={b.id}>{b.nombre}</option>)}
                       </optgroup>
                     ))}
                   </select>
                 </div>
                 <div className="admin-campo">
                   <label className="etiqueta" htmlFor="a-tipo">Tipo de inmueble</label>
-                  <select id="a-tipo" className="campo" value={formData.tipo}
-                    onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}>
-                    {TIPOS_INMUEBLE.map((t) => <option key={t}>{t}</option>)}
+                  <select id="a-tipo" required className="campo" value={formData.id_tipo}
+                    onChange={(e) => setFormData({ ...formData, id_tipo: e.target.value })}>
+                    <option value="">Elegí un tipo…</option>
+                    {tipos.map((t) => <option key={t.id_tipo} value={t.id_tipo}>{t.nombre}</option>)}
                   </select>
                 </div>
               </div>
@@ -396,8 +407,8 @@ export default function AdminPanel() {
                 <div className="admin-campo">
                   <label className="etiqueta" htmlFor="a-dorm">Dormitorios</label>
                   <input id="a-dorm" type="number" inputMode="numeric" className="campo"
-                    value={formData.habitaciones}
-                    onChange={(e) => setFormData({ ...formData, habitaciones: e.target.value })} placeholder="0" />
+                    value={formData.dormitorios}
+                    onChange={(e) => setFormData({ ...formData, dormitorios: e.target.value })} placeholder="0" />
                 </div>
                 <div className="admin-campo">
                   <label className="etiqueta" htmlFor="a-banos">Baños</label>
@@ -408,8 +419,8 @@ export default function AdminPanel() {
                 <div className="admin-campo">
                   <label className="etiqueta" htmlFor="a-m2">Metros²</label>
                   <input id="a-m2" type="number" inputMode="numeric" className="campo"
-                    value={formData.metros_cuadrados}
-                    onChange={(e) => setFormData({ ...formData, metros_cuadrados: e.target.value })} placeholder="0" />
+                    value={formData.superficie_m2}
+                    onChange={(e) => setFormData({ ...formData, superficie_m2: e.target.value })} placeholder="0" />
                 </div>
               </div>
             </fieldset>
@@ -451,7 +462,7 @@ export default function AdminPanel() {
               <input type="file" multiple accept="image/*" className="campo admin-file" onChange={handleFileChange} />
               <p className="admin-pista">
                 Podés seleccionar varias a la vez. Máximo 10 MB por foto (JPG, PNG, WebP o AVIF).
-                {editandoId && ' Si no elegís fotos nuevas, se conservan las actuales.'}
+                {editandoId && ` Esta propiedad tiene ${formData.imagenesActuales.length} foto(s). Si no elegís nuevas, se conservan.`}
               </p>
             </fieldset>
 
@@ -477,12 +488,19 @@ export default function AdminPanel() {
               </div>
 
               <div className="admin-campo" style={{ marginTop: 16 }}>
-                <label className="etiqueta" htmlFor="a-vendedor">Vendedor responsable</label>
-                <select id="a-vendedor" className="campo" value={formData.vendedor_asignado}
-                  onChange={(e) => handleVendedorChange(e.target.value)}>
-                  <option value="papa">{CONTACTOS.papa.nombre}</option>
-                  <option value="socio">{CONTACTOS.socio.nombre}</option>
+                <label className="etiqueta" htmlFor="a-agente">Agente responsable</label>
+                <select id="a-agente" required className="campo" value={formData.id_agente}
+                  onChange={(e) => setFormData({ ...formData, id_agente: e.target.value })}>
+                  <option value="">Elegí un agente…</option>
+                  {agentes.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.nombre}{a.matricula ? ` — mat. ${a.matricula}` : ''}
+                    </option>
+                  ))}
                 </select>
+                <p className="admin-pista">
+                  RN-04: toda propiedad tiene un único agente responsable.
+                </p>
               </div>
             </fieldset>
 
@@ -505,7 +523,7 @@ export default function AdminPanel() {
             ) : (
               propiedades.map((p) => {
                 const publicada = p.publicado ?? true
-                const estado = p.estado_interno || p.estado
+                const estado = p.estado
                 return (
                   <article key={p.id} className={`admin-panel admin-item ${publicada ? '' : 'borrador'}`}>
                     <div className="admin-item-foto">
@@ -520,7 +538,7 @@ export default function AdminPanel() {
                     <div className="admin-item-info">
                       <h2 className="admin-item-titulo">{p.titulo}</h2>
                       <p className="admin-item-meta">
-                        {formatPrecio(p)} · {p.zona}
+                        {formatPrecio(p)} · {p.barrio}
                         {p.latitud == null && <span className="admin-item-sinmapa"> · sin ubicación</span>}
                       </p>
                       <div className="admin-item-insignias">

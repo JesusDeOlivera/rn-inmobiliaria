@@ -16,7 +16,7 @@ export default function CardPropiedad({
   mostrarFavorito = true,
   accion = null, // nodo extra (ej. botón "Quitar" en favoritos)
 }) {
-  const estado = p.estado_interno || p.estado
+  const estado = p.estado
   const noDisponible = estado && estado !== 'Disponible'
 
   return (
@@ -48,12 +48,12 @@ export default function CardPropiedad({
         </div>
 
         <div className="card-prop-cuerpo">
-          <span className="card-prop-zona">{p.zona}</span>
+          <span className="card-prop-zona">{p.barrio}</span>
           <h3 className="card-prop-titulo">{p.titulo}</h3>
           <div className="card-prop-datos">
-            {p.habitaciones > 0 && <span>🛏️ {p.habitaciones} dorm.</span>}
+            {p.dormitorios > 0 && <span>🛏️ {p.dormitorios} dorm.</span>}
             {p.banos > 0 && <span>🚿 {p.banos} baños</span>}
-            {p.metros_cuadrados > 0 && <span>📐 {p.metros_cuadrados} m²</span>}
+            {p.superficie_m2 > 0 && <span>📐 {p.superficie_m2} m²</span>}
           </div>
         </div>
       </Link>

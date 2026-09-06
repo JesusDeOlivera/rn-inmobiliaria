@@ -55,7 +55,8 @@ export default function CatalogoCliente({ propiedades }) {
       const q = ubicacionDebounced.toLowerCase()
       temp = temp.filter(
         (p) =>
-          p.zona?.toLowerCase().includes(q) ||
+          p.barrio?.toLowerCase().includes(q) ||
+          p.localidad?.toLowerCase().includes(q) ||
           p.titulo?.toLowerCase().includes(q) ||
           p.direccion?.toLowerCase().includes(q)
       )
@@ -65,11 +66,11 @@ export default function CatalogoCliente({ propiedades }) {
     if (precioMin) temp = temp.filter((p) => Number(p.precio) >= Number(precioMin))
     if (precioMax) temp = temp.filter((p) => Number(p.precio) <= Number(precioMax))
     if (ambientes !== 'Todos') {
-      if (ambientes === '4+') temp = temp.filter((p) => p.habitaciones >= 4)
-      else temp = temp.filter((p) => p.habitaciones === Number(ambientes))
+      if (ambientes === '4+') temp = temp.filter((p) => p.dormitorios >= 4)
+      else temp = temp.filter((p) => p.dormitorios === Number(ambientes))
     }
-    if (supMin) temp = temp.filter((p) => p.metros_cuadrados >= Number(supMin))
-    if (supMax) temp = temp.filter((p) => p.metros_cuadrados <= Number(supMax))
+    if (supMin) temp = temp.filter((p) => p.superficie_m2 >= Number(supMin))
+    if (supMax) temp = temp.filter((p) => p.superficie_m2 <= Number(supMax))
     return temp
   }, [ubicacionDebounced, tipoPropiedad, precioMin, precioMax, moneda, ambientes, supMin, supMax, propiedades])
 

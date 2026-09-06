@@ -28,17 +28,18 @@ export default async function PropiedadDetalle({ params }) {
 
   const { data: similares } = await listarSimilares(supabaseServer, propiedad)
 
-  const vendedorNombre = propiedad.nombre_vendedor || CONTACTOS.papa.nombre
-  const vendedorTelefono = propiedad.telefono_vendedor || CONTACTOS.papa.tel
-  const vendedorEmail = propiedad.email_vendedor || CONTACTOS.papa.email
+  // El agente responsable viene del modelo (AGENTE [Publica] PROPIEDAD, RN-04).
+  const vendedorNombre = propiedad.agente_nombre || CONTACTOS.papa.nombre
+  const vendedorTelefono = propiedad.agente_telefono || CONTACTOS.papa.tel
+  const vendedorEmail = propiedad.agente_email || CONTACTOS.papa.email
   const mensajeWsp = `Hola ${vendedorNombre}, me interesa la propiedad "${propiedad.titulo}" que vi en la web.`
   const imagenes = propiedad.imagenes || []
-  const estado = propiedad.estado_interno || propiedad.estado
+  const estado = propiedad.estado
 
   const datos = [
-    propiedad.habitaciones > 0 && { icono: '🛏️', valor: propiedad.habitaciones, etiqueta: propiedad.habitaciones === 1 ? 'Dormitorio' : 'Dormitorios' },
+    propiedad.dormitorios > 0 && { icono: '🛏️', valor: propiedad.dormitorios, etiqueta: propiedad.dormitorios === 1 ? 'Dormitorio' : 'Dormitorios' },
     propiedad.banos > 0 && { icono: '🚿', valor: propiedad.banos, etiqueta: propiedad.banos === 1 ? 'Baño' : 'Baños' },
-    propiedad.metros_cuadrados > 0 && { icono: '📐', valor: propiedad.metros_cuadrados, etiqueta: 'm² totales' },
+    propiedad.superficie_m2 > 0 && { icono: '📐', valor: propiedad.superficie_m2, etiqueta: 'm² totales' },
     propiedad.tipo && { icono: '🏷️', valor: propiedad.tipo, etiqueta: 'Tipo' },
   ].filter(Boolean)
 
@@ -50,11 +51,11 @@ export default async function PropiedadDetalle({ params }) {
     description: propiedad.descripcion || undefined,
     url: `${SITE_URL}/propiedad/${propiedad.id}`,
     image: imagenes.length ? imagenes : undefined,
-    datePosted: propiedad.created_at,
+    datePosted: propiedad.fecha_publicacion || propiedad.created_at,
     address: {
       '@type': 'PostalAddress',
       streetAddress: propiedad.direccion || undefined,
-      addressLocality: propiedad.zona,
+      addressLocality: `${propiedad.barrio}, ${propiedad.localidad}`,
       addressRegion: 'Misiones',
       addressCountry: 'AR',
     },
@@ -69,10 +70,10 @@ export default async function PropiedadDetalle({ params }) {
           availability: estado === 'Vendida' ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock',
         }
       : undefined,
-    numberOfBedrooms: propiedad.habitaciones || undefined,
+    numberOfBedrooms: propiedad.dormitorios || undefined,
     numberOfBathroomsTotal: propiedad.banos || undefined,
-    floorSize: propiedad.metros_cuadrados
-      ? { '@type': 'QuantitativeValue', value: propiedad.metros_cuadrados, unitCode: 'MTK' }
+    floorSize: propiedad.superficie_m2
+      ? { '@type': 'QuantitativeValue', value: propiedad.superficie_m2, unitCode: 'MTK' }
       : undefined,
     broker: { '@type': 'RealEstateAgent', name: SITE_NAME },
   }
@@ -106,7 +107,7 @@ export default async function PropiedadDetalle({ params }) {
               <section className="panel ficha-bloque">
                 <h2 className="ficha-bloque-titulo">Ubicación</h2>
                 <p className="ficha-direccion">
-                  <span aria-hidden="true">📍</span> {propiedad.direccion} — {propiedad.zona}
+                  <span aria-hidden="true">📍</span> {propiedad.direccion} — {propiedad.barrio}, {propiedad.localidad}
                 </p>
                 <div className="ficha-mapa">
                   <iframe
@@ -134,7 +135,7 @@ export default async function PropiedadDetalle({ params }) {
             <div className="panel ficha-resumen">
               <BotonFavorito id={propiedad.id} className="btn-fav-ficha" />
 
-              <span className="antetitulo">{propiedad.zona}</span>
+              <span className="antetitulo">{propiedad.barrio} · {propiedad.localidad}</span>
               <h1 className="ficha-titulo">{propiedad.titulo}</h1>
 
               <p className="ficha-precio">{formatPrecio(propiedad)}</p>
