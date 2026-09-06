@@ -43,52 +43,49 @@ export default function FormularioContacto() {
   }
 
   return (
-    <form onSubmit={enviar} style={{ backgroundColor: 'white', padding: 'clamp(24px, 5vw, 44px)', borderRadius: '28px', boxShadow: '0 20px 50px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-      <h3 style={{ fontSize: 'clamp(1.4rem, 4vw, 1.8rem)', fontWeight: '900', color: '#020617', margin: '0 0 4px' }}>Envianos un mensaje</h3>
+    <form onSubmit={enviar} className="panel form-contacto">
+      <h3 className="form-contacto-titulo">Envianos un mensaje</h3>
 
       {feedback && (
-        <p role="status" style={{
-          margin: 0, padding: '12px 16px', borderRadius: '12px', fontWeight: 700, fontSize: '0.9rem',
-          backgroundColor: feedback.tipo === 'ok' ? '#dcfce7' : '#fee2e2',
-          color: feedback.tipo === 'ok' ? '#166534' : '#991b1b',
-        }}>
+        <p role="status" className={`mensaje ${feedback.tipo === 'ok' ? 'mensaje-ok' : 'mensaje-error'}`}>
           {feedback.texto}
         </p>
       )}
 
       <div>
-        <label className="form-label" htmlFor="c-nombre">Nombre completo *</label>
+        <label className="etiqueta" htmlFor="c-nombre">Nombre completo *</label>
         <input
-          id="c-nombre" required className="form-input"
+          id="c-nombre" required className="campo"
           value={form.nombre}
           onChange={e => setForm({ ...form, nombre: e.target.value })}
           type="text" placeholder="Juan Pérez" autoComplete="name"
         />
       </div>
       <div>
-        <label className="form-label" htmlFor="c-email">Email *</label>
+        <label className="etiqueta" htmlFor="c-email">Email *</label>
         <input
-          id="c-email" required className="form-input"
+          id="c-email" required className="campo"
           value={form.email}
           onChange={e => setForm({ ...form, email: e.target.value })}
           type="email" placeholder="juan@ejemplo.com" autoComplete="email" inputMode="email"
         />
       </div>
       <div>
-        <label className="form-label" htmlFor="c-mensaje">Mensaje *</label>
+        <label className="etiqueta" htmlFor="c-mensaje">Mensaje *</label>
         <textarea
-          id="c-mensaje" required className="form-input"
+          id="c-mensaje" required className="campo"
           value={form.mensaje}
           onChange={e => setForm({ ...form, mensaje: e.target.value })}
           placeholder="Me interesa tasar mi propiedad..."
-          style={{ height: '110px', resize: 'none' }}
+          style={{ height: 118, resize: 'none' }}
         />
       </div>
 
       <button
         type="submit"
         disabled={enviando}
-        style={{ backgroundColor: '#4F46E5', color: 'white', padding: '18px', borderRadius: '14px', fontWeight: '900', fontSize: '1rem', border: 'none', cursor: enviando ? 'default' : 'pointer', opacity: enviando ? 0.7 : 1, marginTop: '4px', boxShadow: '0 8px 20px rgba(79,70,229,0.3)', minHeight: '52px', touchAction: 'manipulation' }}
+        className="btn btn-primario btn-bloque"
+        style={{ marginTop: 4, opacity: enviando ? 0.7 : 1 }}
       >
         {enviando ? 'Enviando...' : 'Enviar a WhatsApp 💬'}
       </button>

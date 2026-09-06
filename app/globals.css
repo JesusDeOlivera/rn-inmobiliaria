@@ -1,46 +1,93 @@
 @import "tailwindcss";
 
-/* =========================================
-   VARIABLES DE COLOR
-   ========================================= */
+/* =========================================================================
+   RN INMOBILIARIA — SISTEMA DE DISEÑO
+   Paleta inspirada en Misiones: la tierra roja (laterita), la selva
+   paranaense y el agua de las cataratas.
+   ========================================================================= */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --primary: #1a1a2e;
-  --accent: #e94560;
-  --surface: #f8f8f8;
-  --border: #e5e5e5;
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.12);
-  --radius: 12px;
+  /* --- Tierra roja: color primario, identidad de la provincia --- */
+  --tierra-50:  #FDF5F1;
+  --tierra-100: #F8E4DA;
+  --tierra-200: #EFC4B2;
+  --tierra-400: #C96B47;
+  --tierra-500: #B4492A;
+  --tierra-600: #9C3A1E;   /* primario */
+  --tierra-700: #7C2C15;
+  --tierra-900: #4A1809;
+
+  /* --- Verde selva: superficies oscuras y profundidad --- */
+  --selva-50:  #EFF6F1;
+  --selva-100: #D7EADE;
+  --selva-400: #3E9C74;
+  --selva-600: #1B6B4C;
+  --selva-800: #123829;
+  --selva-900: #0A2119;    /* fondo oscuro */
+
+  /* --- Acentos --- */
+  --agua-500: #2A9D8F;     /* cataratas */
+  --sol-400:  #E9A94A;     /* sol / ocre */
+  --sol-500:  #D98A2B;
+
+  /* --- Neutros cálidos (arena) --- */
+  --arena-50:  #FDFBF7;    /* fondo de página */
+  --arena-100: #F7F2EA;
+  --arena-200: #EDE5D8;
+  --arena-300: #DCD1BF;
+
+  /* --- Tinta (texto) --- */
+  --tinta-900: #1E1B18;
+  --tinta-700: #423B35;
+  --tinta-500: #6B6259;
+  --tinta-400: #8F857A;
+
+  /* --- Semánticos --- */
+  --exito-bg: #DFF0E7;  --exito-fg: #14603F;
+  --aviso-bg: #FCEFD8;  --aviso-fg: #8A5A12;
+  --error-bg: #FBE4DE;  --error-fg: #8E2A16;
+
+  /* --- Superficies --- */
+  --fondo: var(--arena-50);
+  --superficie: #FFFFFF;
+  --borde: var(--arena-200);
+  --borde-suave: var(--arena-100);
+
+  /* --- Radios --- */
+  --r-sm: 10px;
+  --r-md: 16px;
+  --r-lg: 24px;
+  --r-xl: 32px;
+  --r-full: 999px;
+
+  /* --- Sombras: cálidas, no grises --- */
+  --sombra-sm: 0 1px 2px rgba(74, 24, 9, 0.06);
+  --sombra-md: 0 6px 20px rgba(74, 24, 9, 0.08);
+  --sombra-lg: 0 18px 45px rgba(74, 24, 9, 0.12);
+  --sombra-xl: 0 30px 70px rgba(74, 24, 9, 0.16);
+
+  /* --- Tipografía --- */
+  --fuente-titulo: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --fuente-texto: var(--font-inter), system-ui, -apple-system, sans-serif;
+
+  /* --- Layout --- */
+  --ancho-max: 1400px;
+  --nav-alto: 76px;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--fondo);
+  --color-foreground: var(--tinta-900);
+  --font-sans: var(--fuente-texto);
+  --font-serif: var(--fuente-titulo);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --surface: #1a1a1a;
-    --border: #2a2a2a;
-  }
-}
+/* =========================================================================
+   RESET Y BASE
+   ========================================================================= */
 
-/* =========================================
-   RESET Y BASE MOBILE-FIRST
-   ========================================= */
+*, *::before, *::after { box-sizing: border-box; }
 
-/* Previene el zoom no deseado en inputs en iOS */
-input, textarea, select {
-  font-size: 16px !important;
-}
-
-/* Mejor scroll en móvil */
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
@@ -48,312 +95,592 @@ html {
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans, system-ui, sans-serif);
-  line-height: 1.6;
+  margin: 0;
+  min-height: 100vh;
+  background: var(--fondo);
+  color: var(--tinta-900);
+  font-family: var(--fuente-texto);
+  line-height: 1.65;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Evita scroll horizontal accidental */
   overflow-x: hidden;
 }
 
-/* =========================================
-   TOUCH & INTERACTIVIDAD MÓVIL
-   ========================================= */
-
-/* Área mínima de toque recomendada: 44x44px (Apple HIG) */
-button,
-a,
-[role="button"],
-input[type="submit"],
-input[type="button"],
-label[for] {
-  min-height: 44px;
-  min-width: 44px;
-  touch-action: manipulation; /* Elimina delay de 300ms en tap */
-  -webkit-tap-highlight-color: transparent; /* Quita highlight azul en iOS/Android */
-  cursor: pointer;
-}
-
-/* Previene selección accidental de texto en botones */
-button, [role="button"] {
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-/* =========================================
-   IMÁGENES RESPONSIVE
-   ========================================= */
-img, video {
-  max-width: 100%;
-  height: auto;
-}
-
-/* =========================================
-   FORMULARIOS OPTIMIZADOS PARA MÓVIL
-   ========================================= */
-input, textarea, select {
-  appearance: none;
-  -webkit-appearance: none;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  padding: 12px 16px;
-  width: 100%;
-  background: var(--surface);
-  color: var(--foreground);
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-input:focus, textarea:focus, select:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.15);
-}
-
-/* =========================================
-   UTILIDADES MOBILE-FIRST
-   ========================================= */
-
-/* Safe areas para dispositivos con notch */
-.safe-top    { padding-top: env(safe-area-inset-top); }
-.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-.safe-left   { padding-left: env(safe-area-inset-left); }
-.safe-right  { padding-right: env(safe-area-inset-right); }
-
-.safe-x {
-  padding-left: max(16px, env(safe-area-inset-left));
-  padding-right: max(16px, env(safe-area-inset-right));
-}
-
-/* Contenedor principal con padding horizontal adaptable */
-.container-app {
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding-left: max(16px, env(safe-area-inset-left));
-  padding-right: max(16px, env(safe-area-inset-right));
-}
-
-/* =========================================
-   NAVBAR STICKY MÓVIL
-   ========================================= */
-.navbar {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  background: var(--background);
-  border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  padding-top: env(safe-area-inset-top);
-}
-
-/* =========================================
-   BOTTOM NAV (PATRÓN MÓVIL)
-   ========================================= */
-.bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 50;
-  background: var(--background);
-  border-top: 1px solid var(--border);
-  padding-bottom: env(safe-area-inset-bottom);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-/* =========================================
-   CARDS MOBILE-FRIENDLY
-   ========================================= */
-.card {
-  background: var(--background);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.2s, transform 0.2s;
-}
-
-@media (hover: hover) {
-  .card:hover {
-    box-shadow: var(--shadow-md);
-    transform: translateY(-2px);
-  }
-}
-
-/* En móvil, usar :active para feedback táctil */
-.card:active {
-  transform: scale(0.98);
-}
-
-/* =========================================
-   BOTONES
-   ========================================= */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 48px;
-  padding: 12px 24px;
-  border-radius: var(--radius);
+h1, h2, h3, h4 {
+  font-family: var(--fuente-titulo);
   font-weight: 600;
-  font-size: 0.95rem;
-  transition: all 0.15s ease;
-  white-space: nowrap;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  color: var(--tinta-900);
+  margin: 0;
+  /* Fraunces es variable: la optamos para títulos (más contraste, más suave) */
+  font-variation-settings: "SOFT" 20, "WONK" 1;
+}
+
+p { margin: 0; }
+
+a { color: inherit; }
+
+/* Evita el zoom automático en iOS */
+input, textarea, select { font-size: 16px; }
+
+img, video { max-width: 100%; }
+
+/* Área táctil mínima (Apple HIG) */
+button, a[href], [role="button"], label[for] {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
+button { font-family: inherit; cursor: pointer; }
 
-.btn-primary {
-  background: var(--accent);
-  color: white;
-  border: none;
+:focus-visible {
+  outline: 2px solid var(--tierra-600);
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
-.btn-primary:active { opacity: 0.85; transform: scale(0.97); }
-
-.btn-outline {
-  background: transparent;
-  color: var(--foreground);
-  border: 1.5px solid var(--border);
-}
-
-.btn-outline:active { background: var(--surface); transform: scale(0.97); }
-
-/* Botón ancho completo en móvil */
-.btn-full { width: 100%; }
-
-/* =========================================
-   GRID RESPONSIVE
-   ========================================= */
-.grid-responsive {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
-}
-
-@media (min-width: 640px) {
-  .grid-responsive {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
-  }
-}
-
-@media (min-width: 1024px) {
-  .grid-responsive {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 24px;
-  }
-}
-
-/* =========================================
-   TIPOGRAFÍA RESPONSIVE
-   ========================================= */
-.text-display {
-  font-size: clamp(1.75rem, 5vw, 3.5rem);
-  line-height: 1.15;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.text-heading {
-  font-size: clamp(1.25rem, 3vw, 2rem);
-  line-height: 1.3;
-  font-weight: 600;
-}
-
-/* =========================================
-   SCROLL SUAVE EN LISTAS HORIZONTALES
-   ========================================= */
-.scroll-x {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  scroll-snap-type: x mandatory;
-}
-
-.scroll-x::-webkit-scrollbar { display: none; }
-
-.scroll-x > * {
-  scroll-snap-align: start;
-  flex-shrink: 0;
-}
-
-/* =========================================
-   MODAL / BOTTOM SHEET
-   ========================================= */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 100;
-  backdrop-filter: blur(4px);
-}
-
-/* En móvil: bottom sheet desde abajo */
-.bottom-sheet {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: var(--background);
-  border-radius: 20px 20px 0 0;
-  padding: 24px;
-  padding-bottom: max(24px, env(safe-area-inset-bottom));
-  z-index: 101;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-/* Handle visual del bottom sheet */
-.bottom-sheet::before {
-  content: '';
-  display: block;
-  width: 40px;
-  height: 4px;
-  background: var(--border);
-  border-radius: 2px;
-  margin: 0 auto 20px;
-}
-
-/* =========================================
-   LOADING / SKELETON
-   ========================================= */
-.skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--surface) 25%,
-    var(--border) 50%,
-    var(--surface) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: var(--radius);
-}
-
-@keyframes shimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-/* =========================================
-   ACCESIBILIDAD
-   ========================================= */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
-/* Focus visible para navegación por teclado */
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-  border-radius: 4px;
+/* =========================================================================
+   TIPOGRAFÍA — ESCALA
+   ========================================================================= */
+
+.display {
+  font-family: var(--fuente-titulo);
+  font-size: clamp(2.6rem, 7vw, 5.2rem);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-variation-settings: "SOFT" 40, "WONK" 1, "opsz" 144;
 }
+
+.titulo-seccion {
+  font-size: clamp(1.9rem, 4.5vw, 3.1rem);
+  letter-spacing: -0.03em;
+}
+
+.bajada {
+  font-size: clamp(1rem, 2.2vw, 1.18rem);
+  color: var(--tinta-500);
+  line-height: 1.7;
+  max-width: 62ch;
+}
+
+.antetitulo {
+  font-family: var(--fuente-texto);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tierra-600);
+}
+
+/* Palabra destacada con subrayado orgánico */
+.resaltado {
+  color: var(--tierra-600);
+  position: relative;
+  white-space: nowrap;
+}
+.resaltado::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0.06em;
+  height: 0.14em;
+  background: var(--sol-400);
+  opacity: 0.5;
+  border-radius: var(--r-full);
+}
+
+/* =========================================================================
+   LAYOUT
+   ========================================================================= */
+
+.contenedor {
+  width: 100%;
+  max-width: var(--ancho-max);
+  margin-inline: auto;
+  padding-inline: clamp(20px, 5vw, 56px);
+}
+
+.seccion { padding-block: clamp(64px, 9vw, 118px); }
+.seccion-compacta { padding-block: clamp(40px, 6vw, 72px); }
+
+.grilla-props {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
+  gap: clamp(20px, 2.5vw, 34px);
+}
+
+/* =========================================================================
+   BOTONES
+   ========================================================================= */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 52px;
+  padding: 15px 30px;
+  border: 1px solid transparent;
+  border-radius: var(--r-full);
+  font-family: var(--fuente-texto);
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform 0.18s ease, box-shadow 0.18s ease,
+              background-color 0.18s ease, color 0.18s ease;
+}
+.btn:active { transform: scale(0.975); }
+
+.btn-primario {
+  background: var(--tierra-600);
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(156, 58, 30, 0.28);
+}
+@media (hover: hover) {
+  .btn-primario:hover {
+    background: var(--tierra-700);
+    box-shadow: 0 12px 30px rgba(156, 58, 30, 0.34);
+    transform: translateY(-1px);
+  }
+}
+
+.btn-secundario {
+  background: transparent;
+  color: var(--tinta-900);
+  border-color: var(--borde);
+}
+@media (hover: hover) {
+  .btn-secundario:hover { border-color: var(--tinta-400); background: var(--arena-100); }
+}
+
+/* Sobre fondo oscuro */
+.btn-fantasma {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.24);
+  backdrop-filter: blur(6px);
+}
+@media (hover: hover) {
+  .btn-fantasma:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255,255,255,0.4); }
+}
+
+.btn-whatsapp { background: #1FA855; color: #fff; box-shadow: 0 8px 22px rgba(31, 168, 85, 0.28); }
+@media (hover: hover) { .btn-whatsapp:hover { background: #17903F; transform: translateY(-1px); } }
+
+.btn-bloque { width: 100%; }
+
+/* Enlace con flecha que se desplaza */
+.enlace-flecha {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--tierra-600);
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 0.96rem;
+}
+.enlace-flecha span { transition: transform 0.2s ease; }
+@media (hover: hover) { .enlace-flecha:hover span { transform: translateX(4px); } }
+
+/* =========================================================================
+   TARJETAS DE PROPIEDAD
+   ========================================================================= */
+
+.card-prop {
+  position: relative;
+  background: var(--superficie);
+  border: 1px solid var(--borde-suave);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--sombra-sm);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+@media (hover: hover) {
+  .card-prop:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--sombra-lg);
+    border-color: var(--tierra-200);
+  }
+  .card-prop:hover .card-prop-foto { transform: scale(1.05); }
+}
+.card-prop:active { transform: scale(0.99); }
+
+.card-prop-media {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--arena-200);
+}
+.card-prop-foto { transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+/* Degradado inferior para que el precio se lea sobre cualquier foto */
+.card-prop-media::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 45%;
+  background: linear-gradient(to top, rgba(10, 33, 25, 0.72), transparent);
+  pointer-events: none;
+}
+
+.card-prop-precio {
+  position: absolute;
+  left: 16px;
+  bottom: 14px;
+  z-index: 2;
+  color: #fff;
+  font-family: var(--fuente-titulo);
+  font-size: clamp(1.25rem, 2.6vw, 1.6rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 12px rgba(10, 33, 25, 0.5);
+}
+
+.card-prop-cuerpo {
+  padding: 20px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.card-prop-zona {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tierra-600);
+}
+
+.card-prop-titulo {
+  font-size: 1.24rem;
+  line-height: 1.25;
+  font-weight: 600;
+}
+
+.card-prop-datos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--borde-suave);
+  color: var(--tinta-500);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.card-prop-datos span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* =========================================================================
+   INSIGNIAS
+   ========================================================================= */
+
+.insignia {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 13px;
+  border-radius: var(--r-full);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  backdrop-filter: blur(8px);
+}
+.insignia-venta     { background: rgba(255,255,255,0.94); color: var(--selva-800); }
+.insignia-reservada { background: var(--aviso-bg); color: var(--aviso-fg); }
+.insignia-vendida   { background: var(--error-bg); color: var(--error-fg); }
+.insignia-destacada { background: var(--sol-400); color: var(--tierra-900); }
+.insignia-borrador  { background: var(--arena-200); color: var(--tinta-500); }
+
+.pila-insignias {
+  position: absolute;
+  top: 14px; left: 14px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+/* =========================================================================
+   BOTÓN FAVORITO
+   ========================================================================= */
+
+.btn-fav {
+  position: absolute;
+  top: 12px; right: 12px;
+  z-index: 3;
+  width: 42px; height: 42px;
+  display: flex; align-items: center; justify-content: center;
+  border: none;
+  border-radius: var(--r-full);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--sombra-sm);
+  font-size: 1.05rem;
+  line-height: 1;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+@media (hover: hover) { .btn-fav:hover { transform: scale(1.12); background: #fff; } }
+.btn-fav:active { transform: scale(0.92); }
+.btn-fav[aria-pressed="true"] { animation: latido 0.4s ease; }
+
+@keyframes latido {
+  0%, 100% { transform: scale(1); }
+  40% { transform: scale(1.28); }
+}
+
+/* =========================================================================
+   FORMULARIOS
+   ========================================================================= */
+
+.campo {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--borde);
+  border-radius: var(--r-md);
+  background: var(--superficie);
+  color: var(--tinta-900);
+  font-family: var(--fuente-texto);
+  font-size: 1rem;
+  font-weight: 500;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.campo:focus {
+  border-color: var(--tierra-500);
+  box-shadow: 0 0 0 3px rgba(180, 73, 42, 0.14);
+}
+.campo::placeholder { color: var(--tinta-400); }
+
+select.campo {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%236B6259' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  padding-right: 42px;
+}
+
+.etiqueta {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tinta-500);
+  margin-bottom: 8px;
+}
+
+.mensaje { padding: 12px 16px; border-radius: var(--r-md); font-size: 0.92rem; font-weight: 600; }
+.mensaje-ok    { background: var(--exito-bg); color: var(--exito-fg); }
+.mensaje-error { background: var(--error-bg); color: var(--error-fg); }
+
+/* =========================================================================
+   SUPERFICIES
+   ========================================================================= */
+
+.panel {
+  background: var(--superficie);
+  border: 1px solid var(--borde-suave);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sombra-sm);
+}
+
+.panel-oscuro {
+  background: var(--selva-900);
+  color: var(--arena-100);
+}
+.panel-oscuro h1, .panel-oscuro h2, .panel-oscuro h3 { color: #fff; }
+
+.vacio {
+  text-align: center;
+  padding: clamp(48px, 8vw, 90px) 24px;
+  background: var(--superficie);
+  border: 1px dashed var(--borde);
+  border-radius: var(--r-lg);
+}
+
+/* =========================================================================
+   TEXTURA: trama sutil de tierra roja para fondos oscuros
+   ========================================================================= */
+
+.trama-tierra {
+  position: relative;
+  isolation: isolate;
+}
+.trama-tierra::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(60% 55% at 18% 12%, rgba(156, 58, 30, 0.34), transparent 65%),
+    radial-gradient(50% 50% at 88% 78%, rgba(27, 107, 76, 0.30), transparent 62%),
+    radial-gradient(40% 40% at 55% 110%, rgba(217, 138, 43, 0.18), transparent 60%);
+  pointer-events: none;
+}
+
+/* =========================================================================
+   ESQUELETOS DE CARGA
+   ========================================================================= */
+
+.esqueleto {
+  background: linear-gradient(90deg, var(--arena-100) 25%, var(--arena-200) 50%, var(--arena-100) 75%);
+  background-size: 200% 100%;
+  animation: brillo 1.5s infinite;
+  border-radius: var(--r-md);
+}
+@keyframes brillo {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* =========================================================================
+   SCROLL HORIZONTAL SIN BARRA
+   ========================================================================= */
+
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.scroll-x::-webkit-scrollbar { display: none; }
+
+/* =========================================================================
+   UTILIDADES
+   ========================================================================= */
+
+.solo-lectores {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 767px) { .ocultar-movil { display: none !important; } }
+@media (min-width: 768px) { .solo-movil { display: none !important; } }
+
+/* Enlace que envuelve la tarjeta completa */
+.card-prop-enlace {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Formulario de contacto del home */
+.form-contacto {
+  padding: clamp(24px, 4vw, 40px);
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+  box-shadow: var(--sombra-md);
+}
+.form-contacto-titulo { font-size: clamp(1.35rem, 3vw, 1.7rem); margin-bottom: 2px; }
+
+/* =========================================================================
+   MAPA (Leaflet)
+   ========================================================================= */
+
+.mapa-bloque { display: grid; gap: 12px; }
+
+.mapa-lienzo {
+  width: 100%;
+  min-height: 320px;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  border: 1px solid var(--borde);
+  box-shadow: var(--sombra-sm);
+  background: var(--arena-100);
+  z-index: 0; /* debajo del navbar */
+}
+
+.mapa-nota { font-size: 0.84rem; color: var(--tinta-500); line-height: 1.55; }
+
+/* --- Marcador: gota en tierra roja --- */
+.pin-prop-wrap { background: none !important; border: none !important; }
+.pin-prop {
+  display: block;
+  width: 26px; height: 26px;
+  border-radius: 50% 50% 50% 0;
+  background: var(--tierra-600);
+  border: 2.5px solid #fff;
+  box-shadow: 0 4px 12px rgba(74, 24, 9, 0.4);
+  transform: rotate(-45deg);
+  transform-origin: center;
+  margin: 4px 0 0 2px;
+  transition: transform .18s ease;
+}
+.pin-prop-punta {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 8px; height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: #fff;
+}
+.leaflet-marker-icon:hover .pin-prop { transform: rotate(-45deg) scale(1.16); }
+
+/* --- Popup --- */
+.pop-prop-envoltorio .leaflet-popup-content-wrapper {
+  border-radius: var(--r-md);
+  padding: 0;
+  overflow: hidden;
+  box-shadow: var(--sombra-lg);
+  border: 1px solid var(--borde-suave);
+}
+.pop-prop-envoltorio .leaflet-popup-content { margin: 0; width: 232px !important; }
+.pop-prop-envoltorio .leaflet-popup-tip { box-shadow: var(--sombra-md); }
+.pop-prop-envoltorio a.leaflet-popup-close-button { color: var(--tinta-500); padding: 7px 8px 0 0; }
+
+.pop-prop { display: block; text-decoration: none; color: inherit; }
+.pop-prop-foto {
+  display: block;
+  width: 100%; height: 118px;
+  object-fit: cover;
+  background: var(--arena-200);
+}
+.pop-prop-cuerpo { display: block; padding: 12px 14px 14px; }
+.pop-prop-zona {
+  display: block;
+  font-size: 0.64rem; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--tierra-600);
+  margin-bottom: 3px;
+}
+.pop-prop-titulo {
+  display: block;
+  font-family: var(--fuente-titulo);
+  font-size: 1.02rem; font-weight: 600;
+  color: var(--tinta-900);
+  line-height: 1.25;
+  margin-bottom: 5px;
+}
+.pop-prop-precio {
+  display: block;
+  font-size: 0.95rem; font-weight: 600;
+  color: var(--selva-600);
+}
+
+/* Leaflet dibuja controles con z-index alto: los bajamos para no tapar el nav */
+.leaflet-pane, .leaflet-top, .leaflet-bottom { z-index: 1 !important; }

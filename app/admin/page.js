@@ -14,6 +14,7 @@ const FORM_VACIO = {
   titulo: '', descripcion: '', precio: '', moneda: 'USD',
   tipo: 'Casa Usada', zona: 'Centro', imagenes: [],
   habitaciones: '', banos: '', metros_cuadrados: '', direccion: '',
+  latitud: null, longitud: null,
   estado_interno: 'Disponible',
   publicado: true,
   destacado: false,
@@ -31,6 +32,8 @@ export default function AdminPanel() {
   const [cargando, setCargando] = useState(false)
   const [mensaje, setMensaje] = useState('')
   const [editandoId, setEditandoId] = useState(null)
+  const [ubicando, setUbicando] = useState(false)
+  const [ubicacionHallada, setUbicacionHallada] = useState(null)
 
   const [formData, setFormData] = useState(FORM_VACIO)
 
@@ -84,8 +87,42 @@ export default function AdminPanel() {
       estado_interno: p.estado_interno || p.estado || 'Disponible',
     })
     setEditandoId(p.id)
+    setUbicacionHallada(null)
     setTab('cargar')
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // Pide las coordenadas de la direccion al endpoint propio, que a su vez
+  // consulta Nominatim del lado del servidor.
+  const ubicarEnMapa = async () => {
+    if (!formData.direccion?.trim()) {
+      setMensaje('Cargá una dirección antes de ubicarla en el mapa.')
+      setTimeout(() => setMensaje(''), 3000)
+      return
+    }
+    setUbicando(true)
+    setUbicacionHallada(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/geocodificar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`,
+        },
+        body: JSON.stringify({ direccion: formData.direccion, zona: formData.zona }),
+      })
+      const datos = await res.json()
+      if (datos.encontrada) {
+        setFormData((f) => ({ ...f, latitud: datos.lat, longitud: datos.lng }))
+        setUbicacionHallada(datos)
+      } else {
+        setUbicacionHallada({ encontrada: false })
+      }
+    } catch {
+      setUbicacionHallada({ encontrada: false })
+    }
+    setUbicando(false)
   }
 
   const handleSubmit = async (e) => {
@@ -110,6 +147,24 @@ export default function AdminPanel() {
         finalImages = imageUrls
       }
 
+      // Si hay direccion pero todavia no hay coordenadas, las buscamos ahora.
+      let coords = { latitud: formData.latitud, longitud: formData.longitud }
+      if (formData.direccion?.trim() && (coords.latitud == null || coords.longitud == null)) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession()
+          const res = await fetch('/api/geocodificar', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session?.access_token || ''}`,
+            },
+            body: JSON.stringify({ direccion: formData.direccion, zona: formData.zona }),
+          })
+          const datos = await res.json()
+          if (datos.encontrada) coords = { latitud: datos.lat, longitud: datos.lng }
+        } catch { /* sin coordenadas: la propiedad se guarda igual */ }
+      }
+
       // No mandamos id ni created_at en el update.
       const objetoPropiedad = {
         ...formData,
@@ -120,6 +175,8 @@ export default function AdminPanel() {
         imagenes: finalImages,
         publicado: Boolean(formData.publicado),
         destacado: Boolean(formData.destacado),
+        latitud: coords.latitud,
+        longitud: coords.longitud,
         // `estado` es una columna legacy que duplica `estado_interno`.
         // La mantenemos sincronizada para que no se desfasen.
         estado: formData.estado_interno,
@@ -260,7 +317,39 @@ export default function AdminPanel() {
               </div>
               <div>
                 <label style={labelStyle}>Dirección para el Mapa</label>
-                <input value={formData.direccion} placeholder="Ej: Av. Uruguay 4500" style={inputStyle} onChange={e => setFormData({...formData, direccion: e.target.value})} />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    value={formData.direccion}
+                    placeholder="Ej: Av. Uruguay 4500"
+                    style={{ ...inputStyle, flex: 1 }}
+                    onChange={e => setFormData({ ...formData, direccion: e.target.value, latitud: null, longitud: null })}
+                  />
+                  <button
+                    type="button"
+                    onClick={ubicarEnMapa}
+                    disabled={ubicando}
+                    style={{ ...inputStyle, width: 'auto', whiteSpace: 'nowrap', cursor: 'pointer', backgroundColor: '#fff', fontWeight: 700, opacity: ubicando ? 0.6 : 1 }}
+                  >
+                    {ubicando ? 'Buscando…' : '📍 Ubicar'}
+                  </button>
+                </div>
+
+                {formData.latitud != null && (
+                  <p style={{ fontSize: '0.78rem', color: '#166534', marginTop: '8px', lineHeight: 1.5 }}>
+                    ✓ Ubicada en el mapa
+                    {ubicacionHallada?.etiqueta ? `: ${ubicacionHallada.etiqueta.slice(0, 80)}` : ''}
+                    {ubicacionHallada?.precision === 'barrio' && ' (a nivel de barrio: no se encontró la calle exacta)'}
+                  </p>
+                )}
+                {ubicacionHallada && ubicacionHallada.encontrada === false && (
+                  <p style={{ fontSize: '0.78rem', color: '#92400e', marginTop: '8px', lineHeight: 1.5 }}>
+                    No pudimos ubicar esa dirección. La propiedad se guarda igual, pero no va a
+                    aparecer en el mapa. Probá con una calle o barrio más conocido.
+                  </p>
+                )}
+                <p style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '6px' }}>
+                  Si no la ubicás a mano, la buscamos automáticamente al guardar.
+                </p>
               </div>
             </div>
 

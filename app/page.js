@@ -1,270 +1,254 @@
 import Link from 'next/link'
 import { supabaseServer } from '../lib/supabaseServer'
 import { listarDestacadas } from '../lib/propiedades'
-import { formatPrecio, imagenPrincipal, waLink } from '../lib/format'
+import { waLink } from '../lib/format'
 import { OFICINA, WHATSAPP_PRINCIPAL } from '../lib/config'
-import Foto from '../components/Foto'
+import CardPropiedad from '../components/CardPropiedad'
 import FormularioContacto from './formulario-contacto'
 import BotonScroll from './boton-scroll'
 
 // Server Component: las destacadas se traen en el servidor, así el HTML
-// inicial ya las contiene y Google las ve. Lo unico interactivo (el form
-// de contacto y el boton "Escribinos") vive en componentes cliente aparte.
+// inicial ya las contiene y Google las ve.
 export const revalidate = 60
+
+const SERVICIOS = [
+  {
+    titulo: 'Venta de propiedades',
+    icono: '🏡',
+    texto: 'Publicamos, difundimos y acompañamos la operación hasta la escritura.',
+    items: ['Catálogo digital', 'Difusión en redes', 'Asesoramiento legal', 'Cierre de operaciones'],
+  },
+  {
+    titulo: 'Administración de alquileres',
+    icono: '🔑',
+    texto: 'Nos ocupamos del contrato, la cobranza y los ajustes. Vos cobrás.',
+    items: ['Redacción de contratos', 'Cobro mensual', 'Ajustes ICL / IPC', 'Resolución de conflictos'],
+  },
+  {
+    titulo: 'Tasaciones profesionales',
+    icono: '📋',
+    texto: 'Un precio real, basado en el mercado de Posadas y alrededores.',
+    items: ['Análisis de mercado local', 'Visita presencial', 'Informe escrito', 'Sin cargo inicial'],
+  },
+]
+
+const PASOS = [
+  { n: '01', titulo: 'Contanos qué buscás', texto: 'Zona, presupuesto y tipo de propiedad. Por WhatsApp, en dos minutos.' },
+  { n: '02', titulo: 'Te mostramos opciones', texto: 'Seleccionamos lo que encaja y coordinamos las visitas que quieras.' },
+  { n: '03', titulo: 'Cerramos con seguridad', texto: 'Documentación, escribanía y firma. Acompañados en cada paso.' },
+]
 
 export default async function Home() {
   const { data: propiedades } = await listarDestacadas(supabaseServer, 3)
 
   return (
-    <main style={{ minHeight: '100vh', backgroundColor: '#ffffff', fontFamily: 'system-ui, sans-serif' }}>
+    <main>
+      {/* ================= HERO ================= */}
+      <section className="hero trama-tierra">
+        <div className="contenedor hero-inner">
+          <span className="hero-chip">
+            <span className="hero-chip-punto" /> Posadas · Garupá · Candelaria
+          </span>
 
-      <style>{`
-        *, *::before, *::after { box-sizing: border-box; }
-        input, textarea, select { font-size: 16px !important; }
-
-        @media (max-width: 767px) {
-          .hide-mobile { display: none !important; }
-        }
-
-        .hero-section { padding: 80px 6% 80px; }
-        .hero-title {
-          font-size: clamp(2.4rem, 8vw, 5rem);
-          font-weight: 900; color: white;
-          line-height: 1.05; letter-spacing: -2px; margin: 0;
-        }
-        .hero-buttons {
-          display: flex; gap: 12px; margin-top: 40px;
-          justify-content: center; flex-wrap: wrap;
-        }
-        .hero-btn-primary {
-          text-decoration: none; background: #4F46E5; color: white;
-          padding: 16px 32px; border-radius: 16px;
-          font-weight: 800; font-size: 1rem;
-          min-height: 52px; display: flex; align-items: center;
-          -webkit-tap-highlight-color: transparent;
-        }
-        .hero-btn-primary:active { opacity: 0.85; transform: scale(0.97); }
-        .hero-btn-secondary {
-          background: transparent; color: white;
-          border: 1px solid #334155; padding: 16px 32px;
-          border-radius: 16px; font-weight: 800; font-size: 1rem;
-          cursor: pointer; min-height: 52px;
-          -webkit-tap-highlight-color: transparent;
-        }
-        .hero-btn-secondary:active { background: rgba(255,255,255,0.08); }
-
-        .props-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
-          gap: 28px;
-        }
-        .prop-card {
-          background: white; border-radius: 28px; overflow: hidden;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.06);
-          border: 1px solid #f1f5f9;
-          -webkit-tap-highlight-color: transparent;
-          transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .prop-card:active { transform: scale(0.98); }
-        @media (hover: hover) {
-          .prop-card:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
-        }
-        .prop-img-wrap { height: 240px; position: relative; overflow: hidden; }
-        @media (min-width: 768px) { .prop-img-wrap { height: 300px; } }
-        .prop-img { width: 100%; height: 100%; object-fit: cover; }
-        .prop-body { padding: 24px; }
-        @media (min-width: 768px) { .prop-body { padding: 32px; } }
-
-        .services-grid {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 20px; max-width: 1200px; margin: 0 auto;
-        }
-        @media (min-width: 640px) { .services-grid { grid-template-columns: repeat(2, 1fr); } }
-        @media (min-width: 1024px) { .services-grid { grid-template-columns: repeat(3, 1fr); } }
-        .service-card {
-          background: white; padding: 32px; border-radius: 28px;
-          border: 1px solid #e2e8f0; box-shadow: 0 10px 30px rgba(0,0,0,0.03);
-        }
-
-        .historia-wrap { display: flex; gap: 60px; flex-wrap: wrap; align-items: center; }
-        .historia-text, .historia-cards { flex: 1; min-width: min(100%, 320px); }
-
-        .contacto-wrap { display: flex; gap: 50px; flex-wrap: wrap; align-items: flex-start; }
-        .contacto-info, .contacto-form { flex: 1; min-width: min(100%, 320px); }
-        .form-input {
-          width: 100%; padding: 16px; border-radius: 14px;
-          border: 1px solid #cbd5e1; outline: none;
-          font-weight: 600; font-size: 1rem; color: #020617;
-          background: white; transition: border-color 0.2s, box-shadow 0.2s;
-          -webkit-appearance: none; appearance: none;
-        }
-        .form-input:focus {
-          border-color: #4F46E5;
-          box-shadow: 0 0 0 3px rgba(79,70,229,0.12);
-        }
-        .form-label {
-          display: block; font-size: 0.8rem; font-weight: 800;
-          color: #64748b; margin-bottom: 8px;
-        }
-
-        .section-pad { padding: 70px 6%; }
-        @media (min-width: 768px) { .section-pad { padding: 100px 8%; } }
-        .footer-pad { padding: 70px 6%; }
-        @media (min-width: 768px) { .footer-pad { padding: 100px 8%; } }
-
-        .section-title {
-          font-size: clamp(1.8rem, 5vw, 3rem);
-          font-weight: 900; color: #020617;
-          letter-spacing: -1.5px; margin: 0;
-        }
-        .section-subtitle { color: #64748b; font-size: 1.05rem; font-weight: 500; margin-top: 10px; }
-      `}</style>
-
-      {/* HERO */}
-      <section className="hero-section" style={{ backgroundColor: '#020617', position: 'relative', overflow: 'hidden', textAlign: 'center' }}>
-        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '500px', height: '500px', backgroundColor: 'rgba(180,83,9,0.15)', filter: 'blur(130px)', borderRadius: '100%', pointerEvents: 'none' }} />
-
-        <div style={{ position: 'relative', zIndex: 2, maxWidth: '800px', margin: '0 auto' }}>
-          <h1 className="hero-title">
-            Tu futuro hogar en la{' '}
-            <br className="hide-mobile" />
-            <span style={{ color: '#F59E0B' }}>tierra roja.</span>
+          <h1 className="display hero-titulo">
+            Tu futuro hogar
+            <br />
+            en la <span className="resaltado">tierra roja</span>
           </h1>
-          <p style={{ color: '#94a3b8', fontSize: 'clamp(1rem, 2.5vw, 1.2rem)', marginTop: '24px', lineHeight: 1.6, fontWeight: '500', maxWidth: '600px', margin: '24px auto 0' }}>
-            Mucho más que una inmobiliaria: somos el sistema que te ayuda a encontrar o vender tu propiedad en Misiones con seguridad total.
+
+          <p className="hero-bajada">
+            Más que una inmobiliaria: acompañamos cada operación en Misiones con
+            asesoramiento honesto y documentación en regla.
           </p>
-          <div className="hero-buttons">
-            <Link href="/propiedades" className="hero-btn-primary">Buscar Propiedades</Link>
-            <BotonScroll target="contacto" className="hero-btn-secondary">Escribinos</BotonScroll>
-          </div>
-        </div>
-      </section>
 
-      {/* PROPIEDADES DESTACADAS */}
-      <section className="section-pad" style={{ maxWidth: '1450px', margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px', flexWrap: 'wrap', gap: '16px' }}>
-          <div>
-            <h2 className="section-title">Propiedades Destacadas</h2>
-            <p className="section-subtitle">Últimas oportunidades ingresadas a nuestro catálogo.</p>
-          </div>
-          <Link href="/propiedades" style={{ textDecoration: 'none', color: '#4F46E5', fontWeight: '800', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', minHeight: '44px', alignSelf: 'center' }}>
-            Ver todas <span>→</span>
-          </Link>
-        </div>
-
-        <div className="props-grid">
-          {propiedades.map(p => (
-            <Link href={`/propiedad/${p.id}`} key={p.id} style={{ textDecoration: 'none', color: 'inherit' }}>
-              <div className="prop-card">
-                <div className="prop-img-wrap">
-                  <div style={{ position: 'absolute', top: '16px', left: '16px', backgroundColor: '#22c55e', color: 'white', padding: '6px 14px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: '900', zIndex: 10 }}>VENTA</div>
-                  {p.estado_interno !== 'Disponible' && (
-                    <div style={{ position: 'absolute', top: '16px', right: '16px', backgroundColor: '#ef4444', color: 'white', padding: '6px 14px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: '900', zIndex: 10 }}>{p.estado_interno?.toUpperCase()}</div>
-                  )}
-                  <div style={{ position: 'absolute', bottom: '16px', left: '16px', backgroundColor: 'white', padding: '10px 18px', borderRadius: '16px', fontWeight: '900', fontSize: 'clamp(1.1rem, 3vw, 1.5rem)', color: '#020617', boxShadow: '0 8px 20px rgba(0,0,0,0.15)', zIndex: 10 }}>
-                    {formatPrecio(p)}
-                  </div>
-                  <Foto src={imagenPrincipal(p)} alt={p.titulo} sizes="(max-width: 768px) 100vw, 400px" />
-                </div>
-                <div className="prop-body">
-                  <span style={{ color: '#F59E0B', fontWeight: '900', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1.5px' }}>📍 {p.zona}</span>
-                  <h3 style={{ fontSize: 'clamp(1.2rem, 3vw, 1.6rem)', fontWeight: '900', color: '#020617', margin: '12px 0 20px', lineHeight: 1.2 }}>{p.titulo}</h3>
-                  <div style={{ display: 'flex', gap: '20px', borderTop: '1px solid #f1f5f9', paddingTop: '20px', color: '#64748b', fontWeight: '700', fontSize: '1rem' }}>
-                    <span>🛏️ {p.habitaciones} Dorm.</span>
-                    <span>🚿 {p.banos} Baños</span>
-                  </div>
-                </div>
-              </div>
+          <div className="hero-acciones">
+            <Link href="/propiedades" className="btn btn-primario">
+              Ver propiedades
             </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* SERVICIOS */}
-      <section id="servicios" className="section-pad" style={{ backgroundColor: '#f8fafc' }}>
-        <div style={{ textAlign: 'center', marginBottom: '50px' }}>
-          <span style={{ color: '#4F46E5', fontWeight: '900', fontSize: '0.85rem', letterSpacing: '2px', textTransform: 'uppercase' }}>Qué hacemos</span>
-          <h2 className="section-title" style={{ marginTop: '10px' }}>Gestión Integral Inmobiliaria</h2>
-        </div>
-
-        <div className="services-grid">
-          {[
-            { title: 'Venta de Propiedades', icon: '🏡', color: '#3B82F6', items: ['Catálogo digital', 'Difusión en redes', 'Asesoramiento legal', 'Cierre de operaciones'] },
-            { title: 'Administración de Alquileres', icon: '📝', color: '#10B981', items: ['Redacción de contratos', 'Cobro mensual', 'Ajustes automáticos (ICL/IPC)', 'Resolución de conflictos'] },
-            { title: 'Tasaciones Profesionales', icon: '⚖️', color: '#F59E0B', items: ['Análisis de mercado local', 'Visita presencial', 'Entrega de informe', 'Precio real garantizado'] }
-          ].map((srv, i) => (
-            <div key={i} className="service-card">
-              <div style={{ width: '58px', height: '58px', backgroundColor: `${srv.color}20`, color: srv.color, borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.6rem', marginBottom: '20px' }}>{srv.icon}</div>
-              <h4 style={{ fontWeight: '900', fontSize: '1.3rem', color: '#020617', marginBottom: '16px' }}>{srv.title}</h4>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, color: '#64748b', fontSize: '0.95rem', lineHeight: 2, fontWeight: '500' }}>
-                {srv.items.map((item, idx) => (
-                  <li key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ color: srv.color }}>✔</span> {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* HISTORIA */}
-      <section className="section-pad" style={{ maxWidth: '1400px', margin: '0 auto' }}>
-        <div className="historia-wrap">
-          <div className="historia-text">
-            <span style={{ color: '#F59E0B', fontWeight: '900', fontSize: '0.85rem', letterSpacing: '2px', textTransform: 'uppercase' }}>Nuestra Historia</span>
-            <h2 className="section-title" style={{ margin: '15px 0 28px', lineHeight: 1.1 }}>Construimos relaciones, no solo ventas.</h2>
-            <p style={{ color: '#475569', fontSize: '1.05rem', lineHeight: 1.8, marginBottom: '16px' }}>
-              RN Inmobiliaria nació con la visión de profesionalizar el sector inmobiliario en Misiones. Vimos que faltaba un lugar donde la tecnología y el trato humano fueran de la mano.
-            </p>
-            <p style={{ color: '#475569', fontSize: '1.05rem', lineHeight: 1.8 }}>
-              Hoy, ayudamos a cientos de familias y empresas a encontrar su lugar ideal, cuidando su patrimonio con total transparencia y rapidez.
-            </p>
+            <BotonScroll target="contacto" className="btn btn-fantasma">
+              Hablar con nosotros
+            </BotonScroll>
           </div>
 
-          <div className="historia-cards" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {[
-              { icon: '🎯', title: 'Nuestra Misión', text: 'Brindar soluciones inmobiliarias ágiles y seguras, protegiendo los intereses de nuestros clientes en cada paso del proceso.' },
-              { icon: '👁️', title: 'Nuestra Visión', text: 'Ser la inmobiliaria referente de Misiones, destacándonos por la innovación tecnológica y la calidad humana.' },
-            ].map((item, i) => (
-              <div key={i} style={{ padding: '28px', borderRadius: '28px', border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(0,0,0,0.03)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                  <span style={{ fontSize: '1.8rem' }}>{item.icon}</span>
-                  <h3 style={{ fontSize: '1.3rem', fontWeight: '900', color: '#020617', margin: 0 }}>{item.title}</h3>
-                </div>
-                <p style={{ color: '#64748b', lineHeight: 1.6, margin: 0 }}>{item.text}</p>
-              </div>
+          <dl className="hero-datos">
+            <div>
+              <dt>Zona</dt>
+              <dd>Posadas y alrededores</dd>
+            </div>
+            <div>
+              <dt>Operaciones</dt>
+              <dd>Venta · Alquiler · Tasación</dd>
+            </div>
+            <div>
+              <dt>Respuesta</dt>
+              <dd>Por WhatsApp, el mismo día</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      {/* ================= DESTACADAS ================= */}
+      <section className="seccion">
+        <div className="contenedor">
+          <header className="cabecera-seccion">
+            <div>
+              <span className="antetitulo">Selección</span>
+              <h2 className="titulo-seccion">Propiedades destacadas</h2>
+            </div>
+            <Link href="/propiedades" className="enlace-flecha">
+              Ver todo el catálogo <span aria-hidden="true">→</span>
+            </Link>
+          </header>
+
+          {propiedades.length === 0 ? (
+            <div className="vacio">
+              <p className="bajada" style={{ margin: '0 auto' }}>
+                Estamos cargando nuevas propiedades. Escribinos y te avisamos apenas
+                entre algo que encaje con lo que buscás.
+              </p>
+            </div>
+          ) : (
+            <div className="grilla-props">
+              {propiedades.map((p, i) => (
+                <CardPropiedad key={p.id} propiedad={p} prioridad={i === 0} />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ================= SERVICIOS ================= */}
+      <section id="servicios" className="seccion seccion-arena">
+        <div className="contenedor">
+          <header className="cabecera-seccion cabecera-centrada">
+            <div>
+              <span className="antetitulo">Qué hacemos</span>
+              <h2 className="titulo-seccion">Gestión inmobiliaria integral</h2>
+            </div>
+          </header>
+
+          <div className="grilla-servicios">
+            {SERVICIOS.map((s) => (
+              <article key={s.titulo} className="card-servicio">
+                <span className="card-servicio-icono" aria-hidden="true">{s.icono}</span>
+                <h3>{s.titulo}</h3>
+                <p className="card-servicio-texto">{s.texto}</p>
+                <ul className="lista-check">
+                  {s.items.map((i) => (
+                    <li key={i}>{i}</li>
+                  ))}
+                </ul>
+              </article>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CONTACTO */}
-      <section id="contacto" className="section-pad" style={{ maxWidth: '1400px', margin: '0 auto', scrollMarginTop: '90px' }}>
-        <div className="contacto-wrap">
-          <div className="contacto-info">
-            <span style={{ color: '#4F46E5', fontWeight: '900', fontSize: '0.85rem', letterSpacing: '2px', textTransform: 'uppercase', backgroundColor: '#EEF2FF', padding: '8px 16px', borderRadius: '12px' }}>Contacto</span>
-            <h2 className="section-title" style={{ margin: '20px 0 24px', lineHeight: 1 }}>¿Listo para dar el siguiente paso?</h2>
-            <p style={{ color: '#475569', fontSize: '1.1rem', lineHeight: 1.6, marginBottom: '36px' }}>
-              Dejanos tus datos o escribinos directo por WhatsApp. Estamos listos para asesorarte sin compromiso.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {[
-                { bg: '#F8FAFC', border: '#e2e8f0', color: 'inherit', icon: '📍', title: 'Oficina', desc: OFICINA.ciudad },
-                { bg: '#DCFCE7', border: 'transparent', color: '#16A34A', icon: '💬', title: 'WhatsApp', desc: OFICINA.whatsappDisplay },
-              ].map((item, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <div style={{ width: '48px', height: '48px', minWidth: '48px', backgroundColor: item.bg, borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', border: `1px solid ${item.border}`, color: item.color }}>
-                    {item.icon}
-                  </div>
-                  <div>
-                    <p style={{ margin: 0, fontWeight: '900', color: '#020617', fontSize: '0.95rem' }}>{item.title}</p>
-                    <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>{item.desc}</p>
-                  </div>
-                </div>
-              ))}
+      {/* ================= CÓMO TRABAJAMOS ================= */}
+      <section className="seccion">
+        <div className="contenedor">
+          <header className="cabecera-seccion">
+            <div>
+              <span className="antetitulo">Cómo trabajamos</span>
+              <h2 className="titulo-seccion">Tres pasos, sin vueltas</h2>
             </div>
+          </header>
+
+          <ol className="pasos">
+            {PASOS.map((p) => (
+              <li key={p.n} className="paso">
+                <span className="paso-numero">{p.n}</span>
+                <h3 className="paso-titulo">{p.titulo}</h3>
+                <p className="paso-texto">{p.texto}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* ================= HISTORIA ================= */}
+      <section className="seccion seccion-arena">
+        <div className="contenedor historia">
+          <div className="historia-texto">
+            <span className="antetitulo">Nuestra historia</span>
+            <h2 className="titulo-seccion" style={{ margin: '14px 0 22px' }}>
+              Construimos relaciones,
+              <br />
+              no solo ventas
+            </h2>
+            <p className="bajada" style={{ marginBottom: 16 }}>
+              RN Inmobiliaria nació para profesionalizar el sector en Misiones.
+              Faltaba un lugar donde la tecnología y el trato humano fueran de la mano.
+            </p>
+            <p className="bajada">
+              Hoy acompañamos a familias y empresas a encontrar su lugar, cuidando
+              su patrimonio con transparencia y rapidez.
+            </p>
+          </div>
+
+          <div className="historia-tarjetas">
+            <article className="panel card-valor">
+              <span className="card-valor-icono" aria-hidden="true">🎯</span>
+              <h3>Nuestra misión</h3>
+              <p>
+                Brindar soluciones ágiles y seguras, protegiendo los intereses de
+                nuestros clientes en cada paso.
+              </p>
+            </article>
+            <article className="panel card-valor">
+              <span className="card-valor-icono" aria-hidden="true">🌿</span>
+              <h3>Nuestra visión</h3>
+              <p>
+                Ser la inmobiliaria de referencia en Misiones, por innovación y por
+                calidad humana.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= CONTACTO ================= */}
+      <section id="contacto" className="seccion">
+        <div className="contenedor contacto">
+          <div className="contacto-info">
+            <span className="antetitulo">Contacto</span>
+            <h2 className="titulo-seccion" style={{ margin: '14px 0 20px' }}>
+              ¿Damos el siguiente paso?
+            </h2>
+            <p className="bajada" style={{ marginBottom: 34 }}>
+              Dejanos tus datos o escribinos directo por WhatsApp. Te asesoramos sin
+              compromiso.
+            </p>
+
+            <ul className="lista-contacto">
+              <li>
+                <span className="lista-contacto-icono" aria-hidden="true">📍</span>
+                <span>
+                  <strong>Oficina</strong>
+                  {OFICINA.ciudad}
+                </span>
+              </li>
+              <li>
+                <span className="lista-contacto-icono verde" aria-hidden="true">💬</span>
+                <span>
+                  <strong>WhatsApp</strong>
+                  {OFICINA.whatsappDisplay}
+                </span>
+              </li>
+            </ul>
+
+            <a
+              href={waLink(
+                WHATSAPP_PRINCIPAL,
+                'Hola RN Inmobiliaria. Estoy interesado en sus servicios, me gustaría saber más.'
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-whatsapp"
+              style={{ marginTop: 30 }}
+            >
+              Escribinos por WhatsApp
+            </a>
           </div>
 
           <div className="contacto-form">
@@ -273,25 +257,244 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* FOOTER */}
-      <footer className="footer-pad" style={{ backgroundColor: '#020617', color: 'white', textAlign: 'center' }}>
-        <h2 style={{ fontSize: 'clamp(1.6rem, 5vw, 2.5rem)', fontWeight: '900', marginBottom: '20px', letterSpacing: '-1px' }}>RN INMOBILIARIA</h2>
-        <p style={{ color: '#94a3b8', fontSize: 'clamp(1rem, 2.5vw, 1.2rem)', maxWidth: '520px', margin: '0 auto 44px', lineHeight: 1.8 }}>
-          Tu futuro hogar en la tierra roja comienza con un asesoramiento de confianza.
-        </p>
+      {/* ================= PIE ================= */}
+      <footer className="pie trama-tierra">
+        <div className="contenedor pie-inner">
+          <div className="pie-marca">
+            <span className="pie-logo">RN</span>
+            <div>
+              <p className="pie-nombre">RN Inmobiliaria</p>
+              <p className="pie-lugar">Posadas · Misiones · Argentina</p>
+            </div>
+          </div>
 
-        <a
-          href={waLink(WHATSAPP_PRINCIPAL, 'Hola RN Inmobiliaria. Estoy interesado en sus servicios. Me gustaría saber más.')}
-          target="_blank" rel="noopener noreferrer"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', backgroundColor: '#25D366', color: 'white', padding: '16px 32px', borderRadius: '16px', fontWeight: '800', fontSize: '1rem', textDecoration: 'none', marginBottom: '44px', minHeight: '52px' }}
-        >
-          💬 Escribinos por WhatsApp
-        </a>
+          <nav className="pie-links" aria-label="Pie de página">
+            <Link href="/propiedades">Propiedades</Link>
+            <Link href="/catalogo">Búsqueda avanzada</Link>
+            <Link href="/favoritos">Favoritos</Link>
+            <a href="#contacto">Contacto</a>
+          </nav>
 
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '40px', fontSize: '0.8rem', color: '#475569', fontWeight: '700', letterSpacing: '3px' }}>
-          © 2026 POSADAS, MISIONES, ARGENTINA
+          <p className="pie-legal">© 2026 RN Inmobiliaria · Todos los derechos reservados</p>
         </div>
       </footer>
+
+      <style>{`
+        /* ---------- HERO ---------- */
+        .hero {
+          background: var(--selva-900);
+          color: var(--arena-100);
+          padding-block: clamp(72px, 12vw, 132px);
+          overflow: hidden;
+        }
+        .hero-inner { display: flex; flex-direction: column; align-items: flex-start; }
+
+        .hero-chip {
+          display: inline-flex; align-items: center; gap: 9px;
+          padding: 8px 17px;
+          border: 1px solid rgba(255,255,255,0.16);
+          border-radius: var(--r-full);
+          background: rgba(255,255,255,0.05);
+          backdrop-filter: blur(8px);
+          font-size: 0.78rem; font-weight: 500;
+          letter-spacing: 0.05em;
+          color: rgba(255,255,255,0.82);
+        }
+        .hero-chip-punto {
+          width: 7px; height: 7px; border-radius: 50%;
+          background: var(--sol-400);
+          box-shadow: 0 0 0 4px rgba(233,169,74,0.2);
+        }
+
+        .hero-titulo { color: #fff; margin: 26px 0 0; }
+        .hero-titulo .resaltado { color: var(--sol-400); }
+        .hero-titulo .resaltado::after { background: var(--tierra-500); opacity: 0.85; }
+
+        .hero-bajada {
+          color: rgba(255,255,255,0.72);
+          font-size: clamp(1.02rem, 2.2vw, 1.2rem);
+          line-height: 1.7;
+          max-width: 54ch;
+          margin-top: 22px;
+        }
+
+        .hero-acciones { display: flex; flex-wrap: wrap; gap: 13px; margin-top: 36px; }
+
+        .hero-datos {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+          gap: 22px;
+          width: 100%;
+          margin: 58px 0 0;
+          padding-top: 30px;
+          border-top: 1px solid rgba(255,255,255,0.12);
+        }
+        .hero-datos dt {
+          font-size: 0.68rem; font-weight: 700;
+          letter-spacing: 0.16em; text-transform: uppercase;
+          color: var(--sol-400);
+          margin-bottom: 6px;
+        }
+        .hero-datos dd {
+          margin: 0;
+          font-size: 0.98rem;
+          color: rgba(255,255,255,0.86);
+          font-weight: 500;
+        }
+
+        /* ---------- CABECERAS ---------- */
+        .cabecera-seccion {
+          display: flex; align-items: flex-end; justify-content: space-between;
+          flex-wrap: wrap; gap: 18px;
+          margin-bottom: clamp(32px, 4vw, 52px);
+        }
+        .cabecera-seccion .antetitulo { display: block; margin-bottom: 11px; }
+        .cabecera-centrada { justify-content: center; text-align: center; }
+
+        .seccion-arena { background: var(--arena-100); }
+
+        /* ---------- SERVICIOS ---------- */
+        .grilla-servicios {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+          gap: clamp(18px, 2.2vw, 28px);
+        }
+        .card-servicio {
+          background: var(--superficie);
+          border: 1px solid var(--borde-suave);
+          border-radius: var(--r-lg);
+          padding: clamp(26px, 3vw, 36px);
+          box-shadow: var(--sombra-sm);
+          transition: transform .25s ease, box-shadow .25s ease;
+        }
+        @media (hover: hover) {
+          .card-servicio:hover { transform: translateY(-4px); box-shadow: var(--sombra-md); }
+        }
+        .card-servicio-icono {
+          display: grid; place-items: center;
+          width: 54px; height: 54px;
+          border-radius: var(--r-md);
+          background: var(--tierra-50);
+          font-size: 1.5rem;
+          margin-bottom: 18px;
+        }
+        .card-servicio h3 { font-size: 1.28rem; margin-bottom: 9px; }
+        .card-servicio-texto { color: var(--tinta-500); font-size: 0.96rem; margin-bottom: 18px; }
+
+        .lista-check { list-style: none; padding: 0; margin: 0; display: grid; gap: 9px; }
+        .lista-check li {
+          position: relative;
+          padding-left: 25px;
+          font-size: 0.93rem;
+          color: var(--tinta-700);
+        }
+        .lista-check li::before {
+          content: '';
+          position: absolute; left: 0; top: 0.42em;
+          width: 14px; height: 8px;
+          border-left: 2px solid var(--selva-600);
+          border-bottom: 2px solid var(--selva-600);
+          transform: rotate(-45deg);
+          border-radius: 1px;
+        }
+
+        /* ---------- PASOS ---------- */
+        .pasos {
+          list-style: none; padding: 0; margin: 0;
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+          gap: clamp(20px, 3vw, 40px);
+        }
+        .paso { position: relative; padding-top: 26px; border-top: 2px solid var(--borde); }
+        .paso-numero {
+          display: block;
+          font-family: var(--fuente-titulo);
+          font-size: 2.4rem; font-weight: 600;
+          color: var(--tierra-200);
+          line-height: 1;
+          margin-bottom: 14px;
+        }
+        .paso-titulo { font-size: 1.2rem; margin-bottom: 8px; }
+        .paso-texto { color: var(--tinta-500); font-size: 0.96rem; }
+
+        /* ---------- HISTORIA ---------- */
+        .historia {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+          gap: clamp(32px, 5vw, 70px);
+          align-items: center;
+        }
+        .historia-tarjetas { display: grid; gap: 18px; }
+        .card-valor { padding: clamp(24px, 3vw, 32px); }
+        .card-valor-icono { font-size: 1.7rem; display: block; margin-bottom: 12px; }
+        .card-valor h3 { font-size: 1.22rem; margin-bottom: 9px; }
+        .card-valor p { color: var(--tinta-500); font-size: 0.96rem; }
+
+        /* ---------- CONTACTO ---------- */
+        .contacto {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+          gap: clamp(32px, 5vw, 64px);
+          align-items: start;
+        }
+        .lista-contacto { list-style: none; padding: 0; margin: 0; display: grid; gap: 18px; }
+        .lista-contacto li { display: flex; align-items: center; gap: 15px; }
+        .lista-contacto strong {
+          display: block;
+          font-size: 0.94rem; font-weight: 600;
+          color: var(--tinta-900);
+        }
+        .lista-contacto li > span:last-child { color: var(--tinta-500); font-size: 0.93rem; }
+        .lista-contacto-icono {
+          display: grid; place-items: center;
+          flex-shrink: 0;
+          width: 48px; height: 48px;
+          border-radius: var(--r-md);
+          background: var(--arena-100);
+          border: 1px solid var(--borde-suave);
+          font-size: 1.25rem;
+        }
+        .lista-contacto-icono.verde { background: var(--selva-50); border-color: var(--selva-100); }
+
+        /* ---------- PIE ---------- */
+        .pie {
+          background: var(--selva-900);
+          color: rgba(255,255,255,0.7);
+          padding-block: clamp(54px, 7vw, 82px);
+        }
+        .pie-inner { display: grid; gap: 32px; justify-items: center; text-align: center; }
+        .pie-marca { display: flex; align-items: center; gap: 13px; }
+        .pie-logo {
+          display: grid; place-items: center;
+          width: 46px; height: 46px;
+          border-radius: 14px;
+          background: var(--tierra-600); color: #fff;
+          font-family: var(--fuente-titulo); font-weight: 600; font-size: 1.1rem;
+        }
+        .pie-nombre {
+          font-family: var(--fuente-titulo);
+          font-size: 1.2rem; font-weight: 600; color: #fff;
+          text-align: left;
+        }
+        .pie-lugar {
+          font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase;
+          color: rgba(255,255,255,0.5); text-align: left;
+        }
+        .pie-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 26px; }
+        .pie-links a {
+          color: rgba(255,255,255,0.75);
+          text-decoration: none; font-size: 0.94rem;
+          transition: color .18s;
+        }
+        .pie-links a:hover { color: #fff; }
+        .pie-legal {
+          font-size: 0.8rem;
+          color: rgba(255,255,255,0.42);
+          padding-top: 26px;
+          border-top: 1px solid rgba(255,255,255,0.1);
+          width: 100%;
+        }
+      `}</style>
     </main>
   )
 }

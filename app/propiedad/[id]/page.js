@@ -2,16 +2,15 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { supabaseServer } from '../../../lib/supabaseServer'
 import { obtenerPropiedad, listarSimilares, listarPropiedades } from '../../../lib/propiedades'
-import { formatPrecio, imagenPrincipal, waLink } from '../../../lib/format'
+import { formatPrecio, waLink } from '../../../lib/format'
 import { CONTACTOS, SITE_URL, SITE_NAME } from '../../../lib/config'
-import Foto from '../../../components/Foto'
+import CardPropiedad from '../../../components/CardPropiedad'
 import GaleriaPropiedad from '../../../components/GaleriaPropiedad'
 import BotonFavorito from '../../../components/BotonFavorito'
 
 // Server Component: los datos se traen en el servidor, así el HTML que recibe
 // Google (y el que se ve al compartir el link) ya incluye título, precio,
-// descripción y fotos. Antes esto se pedía en un useEffect y el crawler
-// recibía una página vacía.
+// descripción y fotos.
 export const revalidate = 60
 
 // Pre-genera una página estática por propiedad publicada. Las que se carguen
@@ -34,6 +33,14 @@ export default async function PropiedadDetalle({ params }) {
   const vendedorEmail = propiedad.email_vendedor || CONTACTOS.papa.email
   const mensajeWsp = `Hola ${vendedorNombre}, me interesa la propiedad "${propiedad.titulo}" que vi en la web.`
   const imagenes = propiedad.imagenes || []
+  const estado = propiedad.estado_interno || propiedad.estado
+
+  const datos = [
+    propiedad.habitaciones > 0 && { icono: '🛏️', valor: propiedad.habitaciones, etiqueta: propiedad.habitaciones === 1 ? 'Dormitorio' : 'Dormitorios' },
+    propiedad.banos > 0 && { icono: '🚿', valor: propiedad.banos, etiqueta: propiedad.banos === 1 ? 'Baño' : 'Baños' },
+    propiedad.metros_cuadrados > 0 && { icono: '📐', valor: propiedad.metros_cuadrados, etiqueta: 'm² totales' },
+    propiedad.tipo && { icono: '🏷️', valor: propiedad.tipo, etiqueta: 'Tipo' },
+  ].filter(Boolean)
 
   // Datos estructurados para Google (rich results de inmuebles).
   const jsonLd = {
@@ -51,15 +58,15 @@ export default async function PropiedadDetalle({ params }) {
       addressRegion: 'Misiones',
       addressCountry: 'AR',
     },
+    geo: propiedad.latitud && propiedad.longitud
+      ? { '@type': 'GeoCoordinates', latitude: propiedad.latitud, longitude: propiedad.longitud }
+      : undefined,
     offers: Number(propiedad.precio) > 0
       ? {
           '@type': 'Offer',
           price: Number(propiedad.precio),
           priceCurrency: propiedad.moneda || 'USD',
-          availability:
-            propiedad.estado_interno === 'Vendida'
-              ? 'https://schema.org/SoldOut'
-              : 'https://schema.org/InStock',
+          availability: estado === 'Vendida' ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock',
         }
       : undefined,
     numberOfBedrooms: propiedad.habitaciones || undefined,
@@ -71,107 +78,225 @@ export default async function PropiedadDetalle({ params }) {
   }
 
   return (
-    <main style={{ minHeight: '100vh', backgroundColor: '#F8FAFC', fontFamily: 'system-ui, sans-serif' }}>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+    <main className="seccion-compacta">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 20px' }}>
+      <div className="contenedor">
+        <nav className="miga-ficha" aria-label="Ruta">
+          <Link href="/propiedades" className="enlace-volver">
+            <span aria-hidden="true">←</span> Volver al catálogo
+          </Link>
+        </nav>
 
-        <Link href="/propiedades" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', textDecoration: 'none', fontWeight: '700', marginBottom: '25px', fontSize: '0.85rem' }}>
-          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19l-7-7 7-7"></path></svg>
-          VOLVER AL CATÁLOGO
-        </Link>
-
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '30px', alignItems: 'start' }}>
-
-          {/* GALERÍA (cliente: necesita estado) + DESCRIPCIÓN (servidor) */}
-          <div style={{ flex: '1 1 650px', minWidth: '300px' }}>
+        <div className="ficha">
+          {/* ---------- COLUMNA IZQUIERDA ---------- */}
+          <div className="ficha-principal">
             <GaleriaPropiedad
               imagenes={imagenes}
               titulo={propiedad.titulo}
-              estadoInterno={propiedad.estado_interno}
+              estadoInterno={estado}
             />
 
-            <div style={{ marginTop: '30px', backgroundColor: 'white', padding: '30px', borderRadius: '24px', border: '1px solid #f1f5f9' }}>
-              <h2 style={{ fontWeight: '900', fontSize: '1.4rem', color: '#020617', marginBottom: '15px' }}>Descripción</h2>
-              <p style={{ color: '#475569', lineHeight: '1.7', fontSize: '1rem', whiteSpace: 'pre-line' }}>{propiedad.descripcion}</p>
-            </div>
-          </div>
-
-          {/* INFO (servidor, salvo el corazón) */}
-          <div style={{ flex: '1 1 350px', minWidth: '300px' }}>
-            <div style={{ backgroundColor: 'white', padding: '35px', borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: '0 10px 30px rgba(0,0,0,0.02)', position: 'relative' }}>
-
-              <BotonFavorito id={propiedad.id} variante="detalle" />
-
-              <span style={{ color: '#F59E0B', fontWeight: '900', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}>📍 {propiedad.zona}</span>
-              <h1 style={{ fontSize: '2rem', fontWeight: '900', color: '#020617', margin: '12px 0', lineHeight: 1.2, paddingRight: '40px' }}>{propiedad.titulo}</h1>
-
-              <div style={{ margin: '25px 0', fontSize: '2.4rem', fontWeight: '900', color: '#020617', letterSpacing: '-2px' }}>
-                {formatPrecio(propiedad)}
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '30px' }}>
-                <div style={{ padding: '15px', backgroundColor: '#F8FAFC', borderRadius: '16px', textAlign: 'center' }}>
-                  <span style={{ display: 'block', fontSize: '1.2rem', marginBottom: '5px' }}>🛏️</span>
-                  <span style={{ fontWeight: '800', color: '#020617', fontSize: '0.9rem' }}>{propiedad.habitaciones} Dorm.</span>
-                </div>
-                <div style={{ padding: '15px', backgroundColor: '#F8FAFC', borderRadius: '16px', textAlign: 'center' }}>
-                  <span style={{ display: 'block', fontSize: '1.2rem', marginBottom: '5px' }}>🚿</span>
-                  <span style={{ fontWeight: '800', color: '#020617', fontSize: '0.9rem' }}>{propiedad.banos} Baños</span>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <a href={waLink(vendedorTelefono, mensajeWsp)} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', backgroundColor: '#22c55e', color: 'white', textAlign: 'center', padding: '18px', borderRadius: '16px', fontWeight: '900', fontSize: '1rem' }}>
-                  WHATSAPP VENDEDOR
-                </a>
-                <a href={`mailto:${vendedorEmail}`} style={{ textDecoration: 'none', backgroundColor: '#020617', color: 'white', textAlign: 'center', padding: '18px', borderRadius: '16px', fontWeight: '900', fontSize: '1rem' }}>
-                  ENVIAR EMAIL
-                </a>
-              </div>
-            </div>
+            <section className="panel ficha-bloque">
+              <h2 className="ficha-bloque-titulo">Descripción</h2>
+              <p className="ficha-descripcion">{propiedad.descripcion}</p>
+            </section>
 
             {propiedad.direccion && (
-              <div style={{ marginTop: '25px', borderRadius: '24px', overflow: 'hidden', border: '1px solid #f1f5f9' }}>
-                <iframe
-                  title={`Mapa de ${propiedad.direccion}`}
-                  loading="lazy"
-                  width="100%" height="250" style={{ border: 0 }}
-                  src={`https://maps.google.com/maps?q=${encodeURIComponent(propiedad.direccion + ', Misiones, Argentina')}&output=embed`}
-                ></iframe>
-              </div>
+              <section className="panel ficha-bloque">
+                <h2 className="ficha-bloque-titulo">Ubicación</h2>
+                <p className="ficha-direccion">
+                  <span aria-hidden="true">📍</span> {propiedad.direccion} — {propiedad.zona}
+                </p>
+                <div className="ficha-mapa">
+                  <iframe
+                    title={`Mapa de ${propiedad.direccion}`}
+                    loading="lazy"
+                    width="100%"
+                    height="300"
+                    style={{ border: 0, display: 'block' }}
+                    src={
+                      propiedad.latitud && propiedad.longitud
+                        ? `https://www.openstreetmap.org/export/embed.html?bbox=${propiedad.longitud - 0.008}%2C${propiedad.latitud - 0.006}%2C${propiedad.longitud + 0.008}%2C${propiedad.latitud + 0.006}&layer=mapnik&marker=${propiedad.latitud}%2C${propiedad.longitud}`
+                        : `https://maps.google.com/maps?q=${encodeURIComponent(propiedad.direccion + ', Misiones, Argentina')}&output=embed`
+                    }
+                  />
+                </div>
+                <p className="ficha-nota">
+                  Ubicación aproximada: indica la zona, no la dirección exacta.
+                </p>
+              </section>
             )}
           </div>
+
+          {/* ---------- COLUMNA DERECHA ---------- */}
+          <aside className="ficha-lateral">
+            <div className="panel ficha-resumen">
+              <BotonFavorito id={propiedad.id} className="btn-fav-ficha" />
+
+              <span className="antetitulo">{propiedad.zona}</span>
+              <h1 className="ficha-titulo">{propiedad.titulo}</h1>
+
+              <p className="ficha-precio">{formatPrecio(propiedad)}</p>
+
+              {estado && estado !== 'Disponible' && (
+                <span className={`insignia ${estado === 'Reservada' ? 'insignia-reservada' : 'insignia-vendida'}`}>
+                  {estado}
+                </span>
+              )}
+
+              <dl className="ficha-datos">
+                {datos.map((d) => (
+                  <div key={d.etiqueta}>
+                    <dt>
+                      <span aria-hidden="true">{d.icono}</span> {d.etiqueta}
+                    </dt>
+                    <dd>{d.valor}</dd>
+                  </div>
+                ))}
+              </dl>
+
+              <div className="ficha-acciones">
+                <a
+                  href={waLink(vendedorTelefono, mensajeWsp)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-whatsapp btn-bloque"
+                >
+                  Consultar por WhatsApp
+                </a>
+                <a href={`mailto:${vendedorEmail}`} className="btn btn-secundario btn-bloque">
+                  Enviar un email
+                </a>
+              </div>
+
+              <p className="ficha-vendedor">
+                Te atiende <strong>{vendedorNombre}</strong>
+              </p>
+            </div>
+          </aside>
         </div>
 
-        {/* SIMILARES */}
+        {/* ---------- SIMILARES ---------- */}
         {similares.length > 0 && (
-          <div style={{ marginTop: '80px', borderTop: '2px solid #e2e8f0', paddingTop: '60px' }}>
-            <h2 style={{ fontSize: '1.8rem', fontWeight: '900', color: '#020617', marginBottom: '30px' }}>También te puede interesar...</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '25px' }}>
-              {similares.map(p => (
-                <Link key={p.id} href={`/propiedad/${p.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                  <div style={{ backgroundColor: 'white', borderRadius: '24px', overflow: 'hidden', border: '1px solid #f1f5f9' }}>
-                    <div style={{ position: 'relative', height: '220px' }}>
-                      <Foto src={imagenPrincipal(p)} alt={p.titulo} sizes="(max-width: 768px) 100vw, 300px" />
-                    </div>
-                    <div style={{ padding: '20px' }}>
-                      <p style={{ color: '#F59E0B', fontSize: '0.75rem', fontWeight: '900' }}>📍 {p.zona}</p>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: '900', margin: '5px 0 15px' }}>{p.titulo}</h3>
-                      <div style={{ display: 'flex', gap: '15px', color: '#64748b', fontSize: '0.9rem', fontWeight: '700' }}>
-                        <span>🛏️ {p.habitaciones}</span><span>🚿 {p.banos}</span>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
+          <section className="ficha-similares">
+            <header className="cabecera-seccion">
+              <div>
+                <span className="antetitulo">Seguí mirando</span>
+                <h2 className="titulo-seccion">También te puede interesar</h2>
+              </div>
+              <Link href="/propiedades" className="enlace-flecha">
+                Ver todo <span aria-hidden="true">→</span>
+              </Link>
+            </header>
+            <div className="grilla-props">
+              {similares.map((p) => (
+                <CardPropiedad key={p.id} propiedad={p} sizes="(max-width: 768px) 100vw, 300px" />
               ))}
             </div>
-          </div>
+          </section>
         )}
       </div>
+
+      <style>{`
+        .miga-ficha { margin-bottom: 22px; }
+        .enlace-volver {
+          display: inline-flex; align-items: center; gap: 8px;
+          color: var(--tinta-500); text-decoration: none;
+          font-size: 0.9rem; font-weight: 500;
+          transition: color .18s;
+        }
+        .enlace-volver:hover { color: var(--tierra-600); }
+
+        .ficha {
+          display: grid;
+          grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr);
+          gap: clamp(24px, 3vw, 44px);
+          align-items: start;
+        }
+        .ficha-principal { display: grid; gap: 24px; min-width: 0; }
+
+        .ficha-bloque { padding: clamp(22px, 3vw, 32px); }
+        .ficha-bloque-titulo { font-size: 1.3rem; margin-bottom: 14px; }
+        .ficha-descripcion {
+          color: var(--tinta-700);
+          font-size: 1rem; line-height: 1.75;
+          white-space: pre-line;
+        }
+        .ficha-direccion { color: var(--tinta-500); font-size: 0.95rem; margin-bottom: 16px; }
+        .ficha-mapa {
+          border-radius: var(--r-md);
+          overflow: hidden;
+          border: 1px solid var(--borde);
+        }
+        .ficha-nota { font-size: 0.8rem; color: var(--tinta-400); margin-top: 10px; }
+
+        /* ---------- LATERAL ---------- */
+        .ficha-lateral { position: sticky; top: calc(var(--nav-alto) + 20px); }
+        .ficha-resumen { position: relative; padding: clamp(24px, 3vw, 34px); }
+        .btn-fav-ficha {
+          top: 20px; right: 20px;
+          background: var(--arena-100);
+          border: 1px solid var(--borde-suave);
+        }
+        .ficha-titulo {
+          font-size: clamp(1.6rem, 3.4vw, 2.15rem);
+          margin: 10px 0 0;
+          padding-right: 48px;
+        }
+        .ficha-precio {
+          font-family: var(--fuente-titulo);
+          font-size: clamp(1.9rem, 4vw, 2.5rem);
+          font-weight: 600;
+          color: var(--tierra-600);
+          letter-spacing: -0.03em;
+          margin: 18px 0;
+        }
+
+        .ficha-datos {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+          margin: 24px 0;
+        }
+        .ficha-datos > div {
+          background: var(--arena-100);
+          border-radius: var(--r-md);
+          padding: 14px 16px;
+        }
+        .ficha-datos dt {
+          font-size: 0.7rem; font-weight: 600;
+          letter-spacing: 0.06em; text-transform: uppercase;
+          color: var(--tinta-400);
+          margin-bottom: 5px;
+        }
+        .ficha-datos dd {
+          margin: 0;
+          font-family: var(--fuente-titulo);
+          font-size: 1.15rem; font-weight: 600;
+          color: var(--tinta-900);
+        }
+
+        .ficha-acciones { display: grid; gap: 10px; }
+        .ficha-vendedor {
+          margin-top: 18px;
+          text-align: center;
+          font-size: 0.86rem;
+          color: var(--tinta-400);
+        }
+        .ficha-vendedor strong { color: var(--tinta-700); font-weight: 600; }
+
+        .ficha-similares {
+          margin-top: clamp(56px, 8vw, 96px);
+          padding-top: clamp(40px, 5vw, 64px);
+          border-top: 1px solid var(--borde);
+        }
+
+        @media (max-width: 980px) {
+          .ficha { grid-template-columns: 1fr; }
+          .ficha-lateral { position: static; }
+        }
+      `}</style>
     </main>
   )
 }

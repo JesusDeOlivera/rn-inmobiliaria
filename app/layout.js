@@ -1,16 +1,19 @@
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Fraunces, Inter } from 'next/font/google'
 import './globals.css'
 import Navbar from '../components/Navbar'
 import { SITE_URL, SITE_NAME, SITE_DESCRIPTION } from '../lib/config'
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+// Fraunces: serif variable, cálida y con carácter. Para títulos.
+const fraunces = Fraunces({
+  variable: '--font-fraunces',
   subsets: ['latin'],
   display: 'swap',
+  axes: ['SOFT', 'WONK', 'opsz'],
 })
 
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
+// Inter: sans neutra y muy legible. Para el texto corrido y la interfaz.
+const inter = Inter({
+  variable: '--font-inter',
   subsets: ['latin'],
   display: 'swap',
 })
@@ -18,7 +21,7 @@ const geistMono = Geist_Mono({
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: SITE_NAME,
+    default: `${SITE_NAME} — Propiedades en Posadas, Misiones`,
     template: `%s | ${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,
@@ -38,23 +41,22 @@ export const viewport = {
   maximumScale: 5,
   userScalable: true,
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)',  color: '#020617' },
+    { media: '(prefers-color-scheme: light)', color: '#FDFBF7' },
+    { media: '(prefers-color-scheme: dark)', color: '#0A2119' },
   ],
   viewportFit: 'cover',
 }
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="es" data-scroll-behavior="smooth" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body style={{ margin: 0, minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
-
-        {/* Navbar compartido — aparece en TODAS las páginas automáticamente */}
+    <html
+      lang="es"
+      data-scroll-behavior="smooth"
+      className={`${fraunces.variable} ${inter.variable}`}
+    >
+      <body>
         <Navbar />
-
-        {/* Contenido de cada página */}
         {children}
-
       </body>
     </html>
   )

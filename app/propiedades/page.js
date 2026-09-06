@@ -17,25 +17,38 @@ export default async function PropiedadesPage() {
   const { data: propiedades } = await listarPropiedades(supabaseServer)
 
   return (
-    <main style={{ minHeight: '100vh', backgroundColor: '#f8fafc', fontFamily: 'system-ui, sans-serif' }}>
-      <section style={{
-        height: '400px',
-        backgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.7)), url(https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1920&q=80)',
-        backgroundSize: 'cover', backgroundPosition: 'center',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <h1 style={{ color: 'white', fontSize: 'clamp(2rem, 6vw, 3.5rem)', fontWeight: '900', margin: '0 0 10px 0', letterSpacing: '-1px', textAlign: 'center' }}>Catálogo de Ventas</h1>
-        <p style={{ color: '#e2e8f0', fontSize: '1.2rem', fontWeight: '500', textAlign: 'center' }}>Encontrá tu próximo hogar en la tierra roja</p>
+    <main>
+      <section className="hero-catalogo trama-tierra">
+        <div className="contenedor">
+          <span className="antetitulo hero-catalogo-ante">Catálogo</span>
+          <h1 className="display hero-catalogo-titulo">Propiedades en venta</h1>
+          <p className="hero-catalogo-bajada">
+            Todo lo que tenemos publicado hoy en Posadas y alrededores.
+          </p>
+        </div>
       </section>
 
       <PropiedadesCliente propiedades={propiedades} />
 
-      <footer style={{ backgroundColor: '#020617', padding: '60px 8%', color: 'white', textAlign: 'center' }}>
-        <h2 style={{ fontSize: '1.8rem', fontWeight: '900', marginBottom: '10px' }}>RN INMOBILIARIA</h2>
-        <div style={{ fontSize: '0.85rem', color: '#475569', fontWeight: '700', letterSpacing: '2px' }}>
-          © 2026 POSADAS, MISIONES, ARGENTINA
-        </div>
-      </footer>
+      <style>{`
+        .hero-catalogo {
+          background: var(--selva-900);
+          color: #fff;
+          padding-block: clamp(56px, 8vw, 96px) clamp(74px, 9vw, 112px);
+          overflow: hidden;
+        }
+        .hero-catalogo-ante { color: var(--sol-400); display: block; margin-bottom: 12px; }
+        .hero-catalogo-titulo {
+          color: #fff;
+          font-size: clamp(2.1rem, 5.5vw, 3.6rem);
+        }
+        .hero-catalogo-bajada {
+          color: rgba(255,255,255,0.7);
+          font-size: clamp(1rem, 2vw, 1.12rem);
+          margin-top: 14px;
+          max-width: 50ch;
+        }
+      `}</style>
     </main>
   )
 }

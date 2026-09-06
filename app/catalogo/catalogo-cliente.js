@@ -1,34 +1,36 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { formatPrecio, imagenPrincipal } from '../../lib/format'
+import { useEffect, useMemo, useState } from 'react'
+import CardPropiedad from '../../components/CardPropiedad'
 import { TIPOS_INMUEBLE } from '../../lib/barrios'
-import Foto from '../../components/Foto'
-import BotonFavorito from '../../components/BotonFavorito'
 
-const inputStyle = { width: '100%', padding: '12px 15px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '0.9rem', outline: 'none', color: '#020617', fontWeight: '600', backgroundColor: '#f8fafc' }
-const labelStyle = { display: 'block', fontSize: '0.75rem', fontWeight: '900', color: '#020617', textTransform: 'uppercase', marginBottom: '12px', marginTop: '25px', letterSpacing: '1px' }
+// Leaflet toca el DOM directamente: solo en el cliente.
+const MapaPropiedades = dynamic(() => import('../../components/MapaPropiedades'), {
+  ssr: false,
+  loading: () => <div className="esqueleto" style={{ height: '72vh', borderRadius: 'var(--r-lg)' }} />,
+})
 
-function SegmentedButton({ label, activo, onClick }) {
+function Segmento({ etiqueta, activo, onClick }) {
   return (
-    <button type="button" onClick={onClick} style={{ flex: 1, padding: '8px 0', backgroundColor: activo ? '#4F46E5' : 'transparent', color: activo ? 'white' : '#64748b', border: activo ? 'none' : '1px solid #e2e8f0', borderRadius: '8px', fontWeight: '800', fontSize: '0.8rem', cursor: 'pointer', transition: '0.2s' }}>
-      {label}
+    <button type="button" onClick={onClick} className={`segmento ${activo ? 'activo' : ''}`}>
+      {etiqueta}
     </button>
   )
 }
 
-function RadioOption({ label, groupValue, setter }) {
+function Radio({ etiqueta, valor, onClick }) {
+  const activo = valor === etiqueta
   return (
-    <button type="button" onClick={setter} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: '10px', fontSize: '0.9rem', fontWeight: '600', background: 'none', border: 'none', padding: 0, width: '100%', textAlign: 'left' }}>
-      <span style={{ width: '16px', height: '16px', borderRadius: '50%', border: groupValue === label ? '5px solid #4F46E5' : '2px solid #cbd5e1', transition: '0.1s', display: 'inline-block' }} />
-      <span style={{ color: groupValue === label ? '#020617' : '#475569' }}>{label}</span>
+    <button type="button" onClick={onClick} className={`radio ${activo ? 'activo' : ''}`} aria-pressed={activo}>
+      <span className="radio-punto" />
+      <span>{etiqueta}</span>
     </button>
   )
 }
 
 // Recibe las propiedades ya cargadas desde el servidor; solo filtra y renderiza.
 export default function CatalogoCliente({ propiedades }) {
-  // FILTROS
   const [ubicacion, setUbicacion] = useState('')
   const [ubicacionDebounced, setUbicacionDebounced] = useState('')
   const [tipoPropiedad, setTipoPropiedad] = useState('Todos')
@@ -51,22 +53,23 @@ export default function CatalogoCliente({ propiedades }) {
     let temp = [...propiedades]
     if (ubicacionDebounced) {
       const q = ubicacionDebounced.toLowerCase()
-      temp = temp.filter(p =>
-        p.zona?.toLowerCase().includes(q) ||
-        p.titulo?.toLowerCase().includes(q) ||
-        p.direccion?.toLowerCase().includes(q)
+      temp = temp.filter(
+        (p) =>
+          p.zona?.toLowerCase().includes(q) ||
+          p.titulo?.toLowerCase().includes(q) ||
+          p.direccion?.toLowerCase().includes(q)
       )
     }
-    if (tipoPropiedad !== 'Todos') temp = temp.filter(p => p.tipo === tipoPropiedad)
-    if (moneda !== 'Todos') temp = temp.filter(p => p.moneda === moneda)
-    if (precioMin) temp = temp.filter(p => Number(p.precio) >= Number(precioMin))
-    if (precioMax) temp = temp.filter(p => Number(p.precio) <= Number(precioMax))
+    if (tipoPropiedad !== 'Todos') temp = temp.filter((p) => p.tipo === tipoPropiedad)
+    if (moneda !== 'Todos') temp = temp.filter((p) => p.moneda === moneda)
+    if (precioMin) temp = temp.filter((p) => Number(p.precio) >= Number(precioMin))
+    if (precioMax) temp = temp.filter((p) => Number(p.precio) <= Number(precioMax))
     if (ambientes !== 'Todos') {
-      if (ambientes === '4+') temp = temp.filter(p => p.habitaciones >= 4)
-      else temp = temp.filter(p => p.habitaciones === Number(ambientes))
+      if (ambientes === '4+') temp = temp.filter((p) => p.habitaciones >= 4)
+      else temp = temp.filter((p) => p.habitaciones === Number(ambientes))
     }
-    if (supMin) temp = temp.filter(p => p.metros_cuadrados >= Number(supMin))
-    if (supMax) temp = temp.filter(p => p.metros_cuadrados <= Number(supMax))
+    if (supMin) temp = temp.filter((p) => p.metros_cuadrados >= Number(supMin))
+    if (supMax) temp = temp.filter((p) => p.metros_cuadrados <= Number(supMax))
     return temp
   }, [ubicacionDebounced, tipoPropiedad, precioMin, precioMax, moneda, ambientes, supMin, supMax, propiedades])
 
@@ -75,158 +78,272 @@ export default function CatalogoCliente({ propiedades }) {
     setMoneda('Todos'); setAmbientes('Todos'); setSupMin(''); setSupMax(''); setFiltrosAbiertos(false)
   }
 
-  const mapQuery = filtradas.length > 0 && filtradas[0].direccion
-    ? encodeURIComponent(`${filtradas[0].direccion}, Misiones, Argentina`)
-    : (ubicacionDebounced ? encodeURIComponent(`${ubicacionDebounced}, Misiones, Argentina`) : encodeURIComponent('Posadas, Misiones, Argentina'))
-  const mapUrl = `https://maps.google.com/maps?q=${mapQuery}&t=&z=13&ie=UTF8&iwloc=&output=embed`
+  const hayFiltros =
+    ubicacion || tipoPropiedad !== 'Todos' || precioMin || precioMax ||
+    moneda !== 'Todos' || ambientes !== 'Todos' || supMin || supMax
 
   return (
-    <main style={{ minHeight: '100vh', backgroundColor: '#f8fafc', fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ padding: '30px 5%', maxWidth: '1600px', margin: '0 auto' }}>
+    <main className="seccion-compacta">
+      <div className="contenedor">
+        <nav className="miga" aria-label="Ruta">
+          <Link href="/">Inicio</Link>
+          <span aria-hidden="true">/</span>
+          <span>Búsqueda avanzada</span>
+        </nav>
 
-          <div style={{ display: 'flex', gap: '10px', color: '#94a3b8', fontSize: '0.85rem', fontWeight: '600', marginBottom: '30px' }}>
-              <Link href="/" style={{ textDecoration: 'none', color: '#94a3b8' }}>🏠 Inicio</Link>
-              <span>/</span>
-              <span style={{ color: '#020617' }}>Búsqueda Avanzada</span>
-          </div>
+        <button
+          type="button"
+          className="btn btn-secundario btn-bloque btn-filtros-movil"
+          onClick={() => setFiltrosAbiertos(!filtrosAbiertos)}
+        >
+          {filtrosAbiertos ? 'Ocultar filtros' : 'Mostrar filtros'}
+          {hayFiltros && <span className="punto-filtro" aria-label="filtros activos" />}
+        </button>
 
-          <button
-            className="btn-filtros-movil"
-            type="button"
-            onClick={() => setFiltrosAbiertos(!filtrosAbiertos)}
-            style={{ width: '100%', padding: '16px', backgroundColor: '#020617', color: 'white', borderRadius: '16px', fontWeight: '900', marginBottom: '20px', border: 'none', cursor: 'pointer', fontSize: '1rem', display: 'none' }}
-          >
-            {filtrosAbiertos ? 'Ocultar Filtros ✖' : 'Mostrar Filtros ⚲'}
-          </button>
+        <div className="layout-busqueda">
+          {/* ---------------- FILTROS ---------------- */}
+          <aside className={`panel filtros ${filtrosAbiertos ? 'abierto' : ''}`}>
+            <div className="filtros-cabecera">
+              <h2 className="filtros-titulo">Filtros</h2>
+              {hayFiltros && (
+                <button type="button" onClick={limpiarFiltros} className="filtros-limpiar">
+                  Limpiar
+                </button>
+              )}
+            </div>
 
-          <div className="layout-principal" style={{ display: 'flex', gap: '40px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <div className="filtro-grupo">
+              <label className="etiqueta" htmlFor="c-ubicacion">Texto o dirección</label>
+              <input
+                id="c-ubicacion" className="campo" type="text"
+                value={ubicacion} onChange={(e) => setUbicacion(e.target.value)}
+                placeholder="Ej: Villa Cabello, Rademacher…"
+              />
+            </div>
 
-              <aside
-                className={`sidebar-filtros ${filtrosAbiertos ? 'abierto' : ''}`}
-                style={{ flex: '1 1 300px', maxWidth: '320px', backgroundColor: 'white', borderRadius: '24px', padding: '25px', border: '1px solid #e2e8f0', position: 'sticky', top: '100px' }}
-              >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '1.2rem' }}>⚲</span>
-                      <h2 style={{ fontSize: '1.2rem', fontWeight: '900', color: '#020617', margin: 0 }}>Filtros</h2>
-                  </div>
-
-                  <label htmlFor="c-ubicacion" style={labelStyle}>Buscar por texto o dirección</label>
-                  <input id="c-ubicacion" value={ubicacion} onChange={(e) => setUbicacion(e.target.value)} type="text" placeholder="Ej: Calle Rademacher..." style={inputStyle} />
-
-                  <span style={labelStyle}>Tipo de Propiedad</span>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <RadioOption label="Todos" groupValue={tipoPropiedad} setter={() => setTipoPropiedad('Todos')} />
-                      {TIPOS_INMUEBLE.map(t => (
-                        <RadioOption key={t} label={t} groupValue={tipoPropiedad} setter={() => setTipoPropiedad(t)} />
-                      ))}
-                  </div>
-
-                  <span style={labelStyle}>Precio</span>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                      <input aria-label="Precio mínimo" value={precioMin} onChange={(e) => setPrecioMin(e.target.value)} type="number" placeholder="$ Min" style={inputStyle} />
-                      <input aria-label="Precio máximo" value={precioMax} onChange={(e) => setPrecioMax(e.target.value)} type="number" placeholder="$ Max" style={inputStyle} />
-                  </div>
-                  <div style={{ display: 'flex', gap: '5px', marginTop: '10px' }}>
-                      <SegmentedButton label="Todos" activo={moneda === 'Todos'} onClick={() => setMoneda('Todos')} />
-                      <SegmentedButton label="USD" activo={moneda === 'USD'} onClick={() => setMoneda('USD')} />
-                      <SegmentedButton label="ARS" activo={moneda === 'ARS'} onClick={() => setMoneda('ARS')} />
-                  </div>
-
-                  <span style={labelStyle}>Ambientes / Dormitorios</span>
-                  <div style={{ display: 'flex', gap: '5px' }}>
-                      <SegmentedButton label="Todos" activo={ambientes === 'Todos'} onClick={() => setAmbientes('Todos')} />
-                      <SegmentedButton label="1" activo={ambientes === '1'} onClick={() => setAmbientes('1')} />
-                      <SegmentedButton label="2" activo={ambientes === '2'} onClick={() => setAmbientes('2')} />
-                      <SegmentedButton label="3" activo={ambientes === '3'} onClick={() => setAmbientes('3')} />
-                      <SegmentedButton label="4+" activo={ambientes === '4+'} onClick={() => setAmbientes('4+')} />
-                  </div>
-
-                  <span style={labelStyle}>Superficie (M²)</span>
-                  <div style={{ display: 'flex', gap: '10px', marginBottom: '25px' }}>
-                      <input aria-label="Superficie mínima" value={supMin} onChange={(e) => setSupMin(e.target.value)} type="number" placeholder="Min" style={inputStyle} />
-                      <input aria-label="Superficie máxima" value={supMax} onChange={(e) => setSupMax(e.target.value)} type="number" placeholder="Max" style={inputStyle} />
-                  </div>
-
-                  <button type="button" onClick={limpiarFiltros} style={{ width: '100%', padding: '12px', borderRadius: '12px', backgroundColor: '#f1f5f9', color: '#64748b', fontWeight: '800', border: 'none', cursor: 'pointer' }}>
-                      Limpiar Filtros
-                  </button>
-              </aside>
-
-              <div style={{ flex: '1 1 600px', display: 'flex', flexDirection: 'column', width: '100%' }}>
-
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
-                    <h1 style={{ fontSize: '1.8rem', fontWeight: '900', color: '#020617', margin: 0, letterSpacing: '-1px' }}>
-                        {filtradas.length} inmuebles encontrados
-                    </h1>
-
-                    <div style={{ display: 'flex', backgroundColor: '#e2e8f0', padding: '4px', borderRadius: '12px' }}>
-                        <button type="button" onClick={() => setVistaActiva('grilla')} style={{ padding: '8px 16px', borderRadius: '10px', border: 'none', fontWeight: '800', fontSize: '0.85rem', cursor: 'pointer', backgroundColor: vistaActiva === 'grilla' ? 'white' : 'transparent', color: vistaActiva === 'grilla' ? '#4F46E5' : '#64748b', transition: '0.2s' }}>⏹️ Grilla</button>
-                        <button type="button" onClick={() => setVistaActiva('mapa')} style={{ padding: '8px 16px', borderRadius: '10px', border: 'none', fontWeight: '800', fontSize: '0.85rem', cursor: 'pointer', backgroundColor: vistaActiva === 'mapa' ? 'white' : 'transparent', color: vistaActiva === 'mapa' ? '#4F46E5' : '#64748b', transition: '0.2s' }}>🗺️ Mapa</button>
-                    </div>
-                  </div>
-
-                  {filtradas.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '80px', backgroundColor: 'white', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
-                          <p style={{ color: '#64748b', fontWeight: '800', fontSize: '1.2rem' }}>
-                            {propiedades.length === 0
-                              ? 'Todavía no hay propiedades publicadas.'
-                              : 'No hay propiedades que coincidan con estos filtros.'}
-                          </p>
-                          {propiedades.length > 0 && (
-                            <button type="button" onClick={limpiarFiltros} style={{ marginTop: '15px', border: 'none', background: 'none', color: '#4F46E5', fontWeight: '800', cursor: 'pointer', textDecoration: 'underline' }}>Limpiar filtros</button>
-                          )}
-                      </div>
-                  ) : vistaActiva === 'mapa' ? (
-                      <div style={{ width: '100%', height: '75vh', borderRadius: '32px', overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', position: 'relative' }}>
-                          <iframe title="Mapa de propiedades" loading="lazy" width="100%" height="100%" style={{ border: 0 }} src={mapUrl} allowFullScreen></iframe>
-                      </div>
-                  ) : (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '25px' }}>
-                      {filtradas.map(p => (
-                          <div key={p.id} style={{ position: 'relative' }}>
-                            <BotonFavorito id={p.id} />
-
-                            <Link href={`/propiedad/${p.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                            <div style={{ backgroundColor: 'white', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0', transition: '0.3s' }}>
-                                <div style={{ height: '220px', position: 'relative' }}>
-                                    <div style={{ position: 'absolute', top: '15px', left: '15px', backgroundColor: '#4F46E5', color: 'white', padding: '5px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: '900', zIndex: 10 }}>VENTA</div>
-                                    {p.estado_interno !== 'Disponible' && (
-                                        <div style={{ position: 'absolute', top: '45px', left: '15px', backgroundColor: p.estado_interno === 'Reservada' ? '#f59e0b' : '#ef4444', color: 'white', padding: '5px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: '900', zIndex: 10 }}>{p.estado_interno?.toUpperCase()}</div>
-                                    )}
-                                    <div style={{ position: 'absolute', bottom: '15px', left: '15px', backgroundColor: 'white', padding: '8px 16px', borderRadius: '12px', fontWeight: '900', fontSize: '1.1rem', color: '#020617' }}>
-                                        {formatPrecio(p)}
-                                    </div>
-                                    <Foto src={imagenPrincipal(p)} alt={p.titulo} sizes="(max-width: 800px) 100vw, 300px" />
-                                </div>
-                                <div style={{ padding: '20px' }}>
-                                    <p style={{ color: '#F59E0B', fontSize: '0.8rem', margin: '0 0 8px', fontWeight: '800', textTransform: 'uppercase' }}>📍 {p.zona}</p>
-                                    <h3 style={{ fontSize: '1.2rem', fontWeight: '900', color: '#020617', margin: '0 0 15px', lineHeight: 1.3, minHeight: '3.1rem', overflow: 'hidden' }}>{p.titulo}</h3>
-                                    <div style={{ display: 'flex', gap: '15px', borderTop: '1px solid #f1f5f9', paddingTop: '15px', color: '#64748b', fontWeight: '700', fontSize: '0.85rem' }}>
-                                        {p.habitaciones > 0 && <span>🛏️ {p.habitaciones} Dorm.</span>}
-                                        {p.banos > 0 && <span>🚿 {p.banos} Baños</span>}
-                                    </div>
-                                </div>
-                            </div>
-                            </Link>
-                          </div>
-                      ))}
-                      </div>
-                  )}
+            <div className="filtro-grupo">
+              <span className="etiqueta">Tipo de propiedad</span>
+              <div className="radios">
+                <Radio etiqueta="Todos" valor={tipoPropiedad} onClick={() => setTipoPropiedad('Todos')} />
+                {TIPOS_INMUEBLE.map((t) => (
+                  <Radio key={t} etiqueta={t} valor={tipoPropiedad} onClick={() => setTipoPropiedad(t)} />
+                ))}
               </div>
-          </div>
+            </div>
+
+            <div className="filtro-grupo">
+              <span className="etiqueta">Precio</span>
+              <div className="par-campos">
+                <input aria-label="Precio mínimo" className="campo" type="number" inputMode="numeric"
+                  value={precioMin} onChange={(e) => setPrecioMin(e.target.value)} placeholder="Mín." />
+                <input aria-label="Precio máximo" className="campo" type="number" inputMode="numeric"
+                  value={precioMax} onChange={(e) => setPrecioMax(e.target.value)} placeholder="Máx." />
+              </div>
+              <div className="segmentos">
+                <Segmento etiqueta="Todos" activo={moneda === 'Todos'} onClick={() => setMoneda('Todos')} />
+                <Segmento etiqueta="USD" activo={moneda === 'USD'} onClick={() => setMoneda('USD')} />
+                <Segmento etiqueta="ARS" activo={moneda === 'ARS'} onClick={() => setMoneda('ARS')} />
+              </div>
+            </div>
+
+            <div className="filtro-grupo">
+              <span className="etiqueta">Dormitorios</span>
+              <div className="segmentos">
+                {['Todos', '1', '2', '3', '4+'].map((a) => (
+                  <Segmento key={a} etiqueta={a} activo={ambientes === a} onClick={() => setAmbientes(a)} />
+                ))}
+              </div>
+            </div>
+
+            <div className="filtro-grupo">
+              <span className="etiqueta">Superficie (m²)</span>
+              <div className="par-campos">
+                <input aria-label="Superficie mínima" className="campo" type="number" inputMode="numeric"
+                  value={supMin} onChange={(e) => setSupMin(e.target.value)} placeholder="Mín." />
+                <input aria-label="Superficie máxima" className="campo" type="number" inputMode="numeric"
+                  value={supMax} onChange={(e) => setSupMax(e.target.value)} placeholder="Máx." />
+              </div>
+            </div>
+          </aside>
+
+          {/* ---------------- RESULTADOS ---------------- */}
+          <section className="resultados">
+            <header className="resultados-cabecera">
+              <div>
+                <span className="antetitulo">Resultados</span>
+                <h1 className="titulo-seccion resultados-titulo">
+                  {filtradas.length}{' '}
+                  {filtradas.length === 1 ? 'inmueble encontrado' : 'inmuebles encontrados'}
+                </h1>
+              </div>
+
+              <div className="conmutador" role="tablist" aria-label="Vista">
+                <button
+                  type="button" role="tab" aria-selected={vistaActiva === 'grilla'}
+                  className={vistaActiva === 'grilla' ? 'activo' : ''}
+                  onClick={() => setVistaActiva('grilla')}
+                >
+                  Grilla
+                </button>
+                <button
+                  type="button" role="tab" aria-selected={vistaActiva === 'mapa'}
+                  className={vistaActiva === 'mapa' ? 'activo' : ''}
+                  onClick={() => setVistaActiva('mapa')}
+                >
+                  Mapa
+                </button>
+              </div>
+            </header>
+
+            {filtradas.length === 0 ? (
+              <div className="vacio">
+                <p className="bajada" style={{ margin: '0 auto 18px' }}>
+                  {propiedades.length === 0
+                    ? 'Todavía no hay propiedades publicadas.'
+                    : 'No hay propiedades que coincidan con estos filtros.'}
+                </p>
+                {propiedades.length > 0 && (
+                  <button type="button" onClick={limpiarFiltros} className="btn btn-secundario">
+                    Limpiar filtros
+                  </button>
+                )}
+              </div>
+            ) : vistaActiva === 'mapa' ? (
+              <MapaPropiedades propiedades={filtradas} />
+            ) : (
+              <div className="grilla-props">
+                {filtradas.map((p, i) => (
+                  <CardPropiedad
+                    key={p.id}
+                    propiedad={p}
+                    prioridad={i === 0}
+                    sizes="(max-width: 800px) 100vw, (max-width: 1300px) 45vw, 320px"
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
       </div>
 
       <style>{`
-        @media (max-width: 800px) {
-          .btn-filtros-movil { display: block !important; }
-          .sidebar-filtros {
-            display: none !important;
-            max-width: 100% !important;
-            position: static !important;
-            margin-bottom: 20px;
-          }
-          .sidebar-filtros.abierto { display: block !important; }
-          .layout-principal { flex-direction: column !important; }
+        .miga {
+          display: flex; align-items: center; gap: 10px;
+          font-size: 0.85rem; color: var(--tinta-400);
+          margin-bottom: 26px;
+        }
+        .miga a { color: var(--tinta-500); text-decoration: none; }
+        .miga a:hover { color: var(--tierra-600); }
+        .miga span:last-child { color: var(--tinta-900); font-weight: 500; }
+
+        .layout-busqueda {
+          display: grid;
+          grid-template-columns: 300px minmax(0, 1fr);
+          gap: clamp(24px, 3vw, 44px);
+          align-items: start;
+        }
+
+        /* ---------- FILTROS ---------- */
+        .filtros {
+          padding: 24px;
+          position: sticky;
+          top: calc(var(--nav-alto) + 20px);
+          display: grid;
+          gap: 22px;
+        }
+        .filtros-cabecera { display: flex; align-items: center; justify-content: space-between; }
+        .filtros-titulo { font-size: 1.2rem; }
+        .filtros-limpiar {
+          border: none; background: none;
+          color: var(--tierra-600); font-size: 0.85rem; font-weight: 600;
+          text-decoration: underline; text-underline-offset: 3px;
+          padding: 4px;
+        }
+        .filtro-grupo { display: grid; gap: 10px; }
+        .par-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+
+        .segmentos {
+          display: flex; gap: 5px;
+          padding: 4px;
+          background: var(--arena-100);
+          border-radius: var(--r-full);
+        }
+        .segmento {
+          flex: 1;
+          padding: 8px 4px;
+          border: none;
+          border-radius: var(--r-full);
+          background: transparent;
+          color: var(--tinta-500);
+          font-size: 0.82rem; font-weight: 600;
+          transition: background-color .18s, color .18s;
+        }
+        .segmento.activo { background: var(--tierra-600); color: #fff; }
+        .segmento:not(.activo):hover { color: var(--tinta-900); }
+
+        .radios { display: grid; gap: 3px; }
+        .radio {
+          display: flex; align-items: center; gap: 11px;
+          padding: 8px 10px;
+          border: none; background: none;
+          border-radius: var(--r-sm);
+          font-size: 0.92rem; color: var(--tinta-700);
+          text-align: left; width: 100%;
+          transition: background-color .16s;
+        }
+        .radio:hover { background: var(--arena-100); }
+        .radio-punto {
+          flex-shrink: 0;
+          width: 16px; height: 16px;
+          border-radius: 50%;
+          border: 2px solid var(--arena-300);
+          transition: border-color .16s, border-width .16s;
+        }
+        .radio.activo { color: var(--tinta-900); font-weight: 600; }
+        .radio.activo .radio-punto { border: 5px solid var(--tierra-600); }
+
+        .btn-filtros-movil { display: none; margin-bottom: 18px; position: relative; }
+        .punto-filtro {
+          width: 8px; height: 8px; border-radius: 50%;
+          background: var(--tierra-600);
+        }
+
+        /* ---------- RESULTADOS ---------- */
+        .resultados-cabecera {
+          display: flex; align-items: flex-end; justify-content: space-between;
+          flex-wrap: wrap; gap: 16px;
+          margin-bottom: 28px;
+          padding-bottom: 20px;
+          border-bottom: 1px solid var(--borde);
+        }
+        .resultados-cabecera .antetitulo { display: block; margin-bottom: 8px; }
+        .resultados-titulo { font-size: clamp(1.5rem, 3.4vw, 2.1rem); }
+
+        .conmutador {
+          display: flex; gap: 4px;
+          padding: 4px;
+          background: var(--arena-100);
+          border-radius: var(--r-full);
+        }
+        .conmutador button {
+          padding: 9px 20px;
+          border: none; background: transparent;
+          border-radius: var(--r-full);
+          font-size: 0.88rem; font-weight: 600;
+          color: var(--tinta-500);
+          transition: background-color .18s, color .18s, box-shadow .18s;
+        }
+        .conmutador button.activo {
+          background: var(--superficie);
+          color: var(--tierra-600);
+          box-shadow: var(--sombra-sm);
+        }
+
+        @media (max-width: 900px) {
+          .layout-busqueda { grid-template-columns: 1fr; }
+          .btn-filtros-movil { display: inline-flex; }
+          .filtros { display: none; position: static; }
+          .filtros.abierto { display: grid; }
         }
       `}</style>
     </main>
