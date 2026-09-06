@@ -30,29 +30,34 @@ export default function AdminPanel() {
   const [autorizado, setAutorizado] = useState(false)
   const [propiedades, setPropiedades] = useState([])
   const [cargando, setCargando] = useState(false)
-  const [mensaje, setMensaje] = useState('')
+  const [mensaje, setMensaje] = useState(null) // { tipo, texto }
   const [editandoId, setEditandoId] = useState(null)
   const [ubicando, setUbicando] = useState(false)
   const [ubicacionHallada, setUbicacionHallada] = useState(null)
+  const [aBorrar, setABorrar] = useState(null) // propiedad pendiente de confirmación
 
   const [formData, setFormData] = useState(FORM_VACIO)
+
+  const avisar = (texto, tipo = 'ok') => {
+    setMensaje({ texto, tipo })
+    setTimeout(() => setMensaje(null), 4000)
+  }
 
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) router.push('/login')
-      else { setAutorizado(true); fetchPropiedades(); }
+      else { setAutorizado(true); fetchPropiedades() }
     }
     checkUser()
+    // Solo al montar: verifica sesión y hace la carga inicial.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router])
 
   // El panel ve TODO, incluidas las no publicadas (a diferencia del sitio público).
   const fetchPropiedades = async () => {
     const { data, error } = await listarPropiedades(supabase, { incluirNoPublicadas: true })
-    if (error) {
-      setMensaje('Error al cargar propiedades: ' + error)
-      return
-    }
+    if (error) return avisar('Error al cargar propiedades: ' + error, 'error')
     setPropiedades(data)
   }
 
@@ -62,9 +67,7 @@ export default function AdminPanel() {
   }
 
   const handleFileChange = (e) => {
-    if (e.target.files) {
-      setFormData({ ...formData, imagenes: Array.from(e.target.files) })
-    }
+    if (e.target.files) setFormData({ ...formData, imagenes: Array.from(e.target.files) })
   }
 
   const handleVendedorChange = (val) => {
@@ -73,7 +76,7 @@ export default function AdminPanel() {
       vendedor_asignado: val,
       nombre_vendedor: CONTACTOS[val].nombre,
       telefono_vendedor: CONTACTOS[val].tel,
-      email_vendedor: CONTACTOS[val].email
+      email_vendedor: CONTACTOS[val].email,
     })
   }
 
@@ -92,27 +95,35 @@ export default function AdminPanel() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // Pide las coordenadas de la direccion al endpoint propio, que a su vez
-  // consulta Nominatim del lado del servidor.
+  const nuevaPropiedad = () => {
+    setEditandoId(null)
+    setFormData(FORM_VACIO)
+    setUbicacionHallada(null)
+    setTab('cargar')
+  }
+
+  // Pide las coordenadas al endpoint propio, que consulta Nominatim server-side.
+  const geocodificar = async (direccion, zona) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/geocodificar', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session?.access_token || ''}`,
+      },
+      body: JSON.stringify({ direccion, zona }),
+    })
+    return res.json()
+  }
+
   const ubicarEnMapa = async () => {
     if (!formData.direccion?.trim()) {
-      setMensaje('Cargá una dirección antes de ubicarla en el mapa.')
-      setTimeout(() => setMensaje(''), 3000)
-      return
+      return avisar('Cargá una dirección antes de ubicarla en el mapa.', 'aviso')
     }
     setUbicando(true)
     setUbicacionHallada(null)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const res = await fetch('/api/geocodificar', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token || ''}`,
-        },
-        body: JSON.stringify({ direccion: formData.direccion, zona: formData.zona }),
-      })
-      const datos = await res.json()
+      const datos = await geocodificar(formData.direccion, formData.zona)
       if (datos.encontrada) {
         setFormData((f) => ({ ...f, latitud: datos.lat, longitud: datos.lng }))
         setUbicacionHallada(datos)
@@ -128,44 +139,29 @@ export default function AdminPanel() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setCargando(true)
-    setMensaje('Procesando...')
     try {
       let finalImages = formData.imagenes
       if (formData.imagenes.length > 0 && formData.imagenes[0] instanceof File) {
         const imageUrls = []
         for (const file of formData.imagenes) {
           const fileName = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${file.name.split('.').pop()}`
-          const { error: upErr } = await supabase.storage
-            .from('imagenes_propiedades')
-            .upload(fileName, file)
+          const { error: upErr } = await supabase.storage.from('imagenes_propiedades').upload(fileName, file)
           if (upErr) throw new Error('Subiendo imágenes: ' + upErr.message)
-          const { data: { publicUrl } } = supabase.storage
-            .from('imagenes_propiedades')
-            .getPublicUrl(fileName)
+          const { data: { publicUrl } } = supabase.storage.from('imagenes_propiedades').getPublicUrl(fileName)
           imageUrls.push(publicUrl)
         }
         finalImages = imageUrls
       }
 
-      // Si hay direccion pero todavia no hay coordenadas, las buscamos ahora.
+      // Si hay dirección pero todavía no hay coordenadas, las buscamos ahora.
       let coords = { latitud: formData.latitud, longitud: formData.longitud }
       if (formData.direccion?.trim() && (coords.latitud == null || coords.longitud == null)) {
         try {
-          const { data: { session } } = await supabase.auth.getSession()
-          const res = await fetch('/api/geocodificar', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${session?.access_token || ''}`,
-            },
-            body: JSON.stringify({ direccion: formData.direccion, zona: formData.zona }),
-          })
-          const datos = await res.json()
+          const datos = await geocodificar(formData.direccion, formData.zona)
           if (datos.encontrada) coords = { latitud: datos.lat, longitud: datos.lng }
         } catch { /* sin coordenadas: la propiedad se guarda igual */ }
       }
 
-      // No mandamos id ni created_at en el update.
       const objetoPropiedad = {
         ...formData,
         precio: parseFloat(formData.precio) || 0,
@@ -178,7 +174,6 @@ export default function AdminPanel() {
         latitud: coords.latitud,
         longitud: coords.longitud,
         // `estado` es una columna legacy que duplica `estado_interno`.
-        // La mantenemos sincronizada para que no se desfasen.
         estado: formData.estado_interno,
       }
       delete objetoPropiedad.id
@@ -187,20 +182,21 @@ export default function AdminPanel() {
       if (editandoId) {
         const { error } = await supabase.from('propiedades').update(objetoPropiedad).eq('id', editandoId)
         if (error) throw new Error(error.message)
-        setMensaje('✓ ACTUALIZADA')
+        avisar('Propiedad actualizada')
       } else {
         const { error } = await supabase.from('propiedades').insert([objetoPropiedad])
         if (error) throw new Error(error.message)
-        setMensaje('✓ PUBLICADA')
+        avisar('Propiedad publicada')
       }
 
       setEditandoId(null)
       setFormData(FORM_VACIO)
       fetchPropiedades()
       setTab('gestionar')
-    } catch (err) { setMensaje('Error: ' + err.message) }
+    } catch (err) {
+      avisar('Error: ' + err.message, 'error')
+    }
     setCargando(false)
-    setTimeout(() => setMensaje(''), 4000)
   }
 
   const cambiarEstadoRapido = async (id, nuevoEstado) => {
@@ -209,7 +205,7 @@ export default function AdminPanel() {
       .from('propiedades')
       .update({ estado_interno: nuevoEstado, estado: nuevoEstado })
       .eq('id', id)
-    if (error) setMensaje('Error: ' + error.message)
+    if (error) avisar('Error: ' + error.message, 'error')
     fetchPropiedades()
   }
 
@@ -218,262 +214,636 @@ export default function AdminPanel() {
       .from('propiedades')
       .update({ publicado: !(p.publicado ?? true) })
       .eq('id', p.id)
-    if (error) setMensaje('Error: ' + error.message)
+    if (error) avisar('Error: ' + error.message, 'error')
     fetchPropiedades()
   }
 
-  const eliminarPropiedad = async (id) => {
-    if (!confirm('¿Seguro querés borrar esta propiedad definitivamente?')) return
-    const { error } = await supabase.from('propiedades').delete().eq('id', id)
-    if (error) setMensaje('Error al borrar: ' + error.message)
+  const confirmarBorrado = async () => {
+    if (!aBorrar) return
+    const { error } = await supabase.from('propiedades').delete().eq('id', aBorrar.id)
+    if (error) avisar('Error al borrar: ' + error.message, 'error')
+    else avisar('Propiedad eliminada')
+    setABorrar(null)
     fetchPropiedades()
   }
 
-  if (!autorizado) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC' }}>
-        <p style={{ fontWeight: '900', color: '#020617' }}>VERIFICANDO ACCESO...</p>
-    </div>
-  )
+  if (!autorizado) {
+    return (
+      <div className="admin-verificando">
+        <div className="admin-spinner" />
+        <p>Verificando acceso…</p>
+        <style>{`
+          .admin-verificando {
+            min-height: 100vh; display: grid; place-items: center; gap: 16px;
+            align-content: center; background: var(--arena-100);
+            color: var(--tinta-500); font-weight: 500;
+          }
+          .admin-spinner {
+            width: 34px; height: 34px; border-radius: 50%;
+            border: 3px solid var(--arena-300); border-top-color: var(--tierra-600);
+            animation: girar .9s linear infinite;
+          }
+          @keyframes girar { to { transform: rotate(360deg) } }
+        `}</style>
+      </div>
+    )
+  }
 
-  const inputStyle = { padding: '18px', borderRadius: '18px', border: '1px solid #e2e8f0', color: '#020617', fontWeight: '700', width: '100%', outline: 'none', backgroundColor: '#F8FAFC', fontSize: '0.95rem' }
-  const labelStyle = { color: '#64748b', fontWeight: '900', fontSize: '0.7rem', marginBottom: '8px', display: 'block', textTransform: 'uppercase', letterSpacing: '1px' }
+  const publicadas = propiedades.filter((p) => p.publicado ?? true).length
+  const destacadas = propiedades.filter((p) => p.destacado).length
 
   return (
-    <main style={{ minHeight: '100vh', backgroundColor: '#F8FAFC', fontFamily: 'system-ui, sans-serif' }}>
-      
-      {/* NAVBAR ADMIN PREMIUM (Corregido para celular) */}
-      <nav style={{ minHeight: '80px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', padding: '15px 5%', backgroundColor: '#ffffff', position: 'sticky', top: 0, zIndex: 100, borderBottom: '1px solid #f1f5f9', gap: '15px' }}>
-        <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ backgroundColor: '#020617', color: '#ffffff', padding: '10px 14px', borderRadius: '12px', fontWeight: '900' }}>RN</div>
-          <span style={{ fontWeight: '900', fontSize: '1.2rem', color: '#020617', letterSpacing: '-1px' }} className="hide-on-tiny">ADMIN</span>
-        </Link>
+    <div className="admin">
+      {/* ================= BARRA ================= */}
+      <header className="admin-barra">
+        <div className="admin-barra-inner">
+          <Link href="/admin" className="admin-marca">
+            <span className="admin-marca-logo">RN</span>
+            <span className="admin-marca-texto">
+              <strong>Panel</strong>
+              <span>Administración</span>
+            </span>
+          </Link>
 
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-            <Link href="/" style={{ textDecoration: 'none', color: '#64748b', fontWeight: '700', fontSize: '0.9rem', backgroundColor: '#f1f5f9', padding: '8px 12px', borderRadius: '10px' }}>Ver Web</Link>
-            <button onClick={handleLogout} style={{ background: '#FFF1F2', border: 'none', color: '#e11d48', padding: '8px 12px', borderRadius: '10px', fontWeight: '700', cursor: 'pointer', fontSize: '0.9rem' }}>Salir</button>
+          <div className="admin-barra-acciones">
+            <Link href="/" className="admin-btn-fantasma">Ver el sitio</Link>
+            <button type="button" onClick={handleLogout} className="admin-btn-salir">Salir</button>
+          </div>
         </div>
-      </nav>
+      </header>
 
-      <div style={{ maxWidth: '1100px', margin: '30px auto', padding: '0 5%' }}>
-        
-        {/* TABS SELECTOR */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', backgroundColor: '#e2e8f0', padding: '6px', borderRadius: '20px', marginBottom: '30px', gap: '5px' }}>
-            <button type="button" onClick={() => { setTab('gestionar'); setEditandoId(null); setFormData(FORM_VACIO); }} style={{ flex: '1 1 150px', padding: '15px', borderRadius: '16px', border: 'none', fontWeight: '800', cursor: 'pointer', backgroundColor: tab === 'gestionar' ? '#ffffff' : 'transparent', color: '#020617', transition: '0.3s' }}>
-                GESTIONAR LISTADO
-            </button>
-            <button onClick={() => setTab('cargar')} style={{ flex: '1 1 150px', padding: '15px', borderRadius: '16px', border: 'none', fontWeight: '800', cursor: 'pointer', backgroundColor: tab === 'cargar' ? '#ffffff' : 'transparent', color: '#020617', transition: '0.3s' }}>
-                {editandoId ? 'EDITAR PROPIEDAD' : 'CARGAR NUEVA'}
-            </button>
+      <main className="admin-cuerpo">
+        {/* ================= RESUMEN ================= */}
+        <section className="admin-metricas">
+          <div className="admin-metrica">
+            <span className="admin-metrica-valor">{propiedades.length}</span>
+            <span className="admin-metrica-etiqueta">Propiedades</span>
+          </div>
+          <div className="admin-metrica">
+            <span className="admin-metrica-valor">{publicadas}</span>
+            <span className="admin-metrica-etiqueta">Publicadas</span>
+          </div>
+          <div className="admin-metrica">
+            <span className="admin-metrica-valor">{destacadas}</span>
+            <span className="admin-metrica-etiqueta">En portada</span>
+          </div>
+        </section>
+
+        {/* ================= PESTAÑAS ================= */}
+        <div className="admin-pestanas" role="tablist">
+          <button
+            type="button" role="tab" aria-selected={tab === 'gestionar'}
+            className={tab === 'gestionar' ? 'activa' : ''}
+            onClick={() => { setTab('gestionar'); setEditandoId(null); setFormData(FORM_VACIO) }}
+          >
+            Listado
+          </button>
+          <button
+            type="button" role="tab" aria-selected={tab === 'cargar'}
+            className={tab === 'cargar' ? 'activa' : ''}
+            onClick={() => setTab('cargar')}
+          >
+            {editandoId ? 'Editando propiedad' : 'Cargar nueva'}
+          </button>
         </div>
 
         {mensaje && (
-            <div style={{ backgroundColor: '#020617', color: 'white', padding: '20px', borderRadius: '20px', marginBottom: '30px', fontWeight: '700', textAlign: 'center', animation: 'fadeIn 0.5s' }}>
-                {mensaje}
-            </div>
+          <p role="status" className={`mensaje admin-aviso ${mensaje.tipo === 'error' ? 'mensaje-error' : mensaje.tipo === 'aviso' ? 'admin-aviso-atencion' : 'mensaje-ok'}`}>
+            {mensaje.texto}
+          </p>
         )}
 
+        {/* ================= FORMULARIO ================= */}
         {tab === 'cargar' ? (
-          <form onSubmit={handleSubmit} className="form-container" style={{ backgroundColor: 'white', borderRadius: '35px', boxShadow: '0 20px 40px rgba(0,0,0,0.03)', border: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '25px' }}>
-            
-            {/* Las grillas fijas pasaron a "repeat(auto-fit, minmax(280px, 1fr))". Magia pura. */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-              <div>
-                <label style={labelStyle}>Título de la propiedad</label>
-                <input required value={formData.titulo} style={inputStyle} onChange={e => setFormData({...formData, titulo: e.target.value})} placeholder="Ej: Casa Moderna..." />
-              </div>
-              <div>
-                <label style={labelStyle}>Estado Inicial</label>
-                <select value={formData.estado_interno} style={inputStyle} onChange={e => setFormData({...formData, estado_interno: e.target.value})}>
-                  {ESTADOS_PROPIEDAD.map(s => <option key={s}>{s}</option>)}
-                </select>
-              </div>
+          <form onSubmit={handleSubmit} className="admin-panel admin-form">
+            <div className="admin-form-cabecera">
+              <h1>{editandoId ? 'Editar propiedad' : 'Cargar una propiedad'}</h1>
+              {editandoId && (
+                <button type="button" onClick={nuevaPropiedad} className="admin-enlace">
+                  Cancelar edición
+                </button>
+              )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-              <div>
-                <label style={labelStyle}>Zona / Barrio</label>
-                <select value={formData.zona} style={inputStyle} onChange={e => setFormData({...formData, zona: e.target.value})}>
-                   {GRUPOS_BARRIOS.map(g => (
-                     <optgroup key={g.label} label={g.label}>
-                       {g.barrios.map(b => <option key={b} value={b}>{b}</option>)}
-                     </optgroup>
-                   ))}
-                </select>
+            <fieldset className="admin-grupo">
+              <legend>Datos principales</legend>
+              <div className="admin-fila">
+                <div className="admin-campo">
+                  <label className="etiqueta" htmlFor="a-titulo">Título</label>
+                  <input id="a-titulo" required className="campo" value={formData.titulo}
+                    onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
+                    placeholder="Ej: Casa con patio en Villa Cabello" />
+                </div>
+                <div className="admin-campo">
+                  <label className="etiqueta" htmlFor="a-estado">Estado</label>
+                  <select id="a-estado" className="campo" value={formData.estado_interno}
+                    onChange={(e) => setFormData({ ...formData, estado_interno: e.target.value })}>
+                    {ESTADOS_PROPIEDAD.map((s) => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label style={labelStyle}>Tipo de Inmueble</label>
-                <select value={formData.tipo} style={inputStyle} onChange={e => setFormData({...formData, tipo: e.target.value})}>
-                  {TIPOS_INMUEBLE.map(t => <option key={t}>{t}</option>)}
-                </select>
-              </div>
-            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-              <div>
-                <label style={labelStyle}>Vendedor Responsable</label>
-                <select value={formData.vendedor_asignado} style={inputStyle} onChange={e => handleVendedorChange(e.target.value)}>
-                  <option value="papa">(RN Inmobiliaria)</option><option value="socio">Socio</option>
-                </select>
+              <div className="admin-fila">
+                <div className="admin-campo">
+                  <label className="etiqueta" htmlFor="a-zona">Zona / barrio</label>
+                  <select id="a-zona" className="campo" value={formData.zona}
+                    onChange={(e) => setFormData({ ...formData, zona: e.target.value, latitud: null, longitud: null })}>
+                    {GRUPOS_BARRIOS.map((g) => (
+                      <optgroup key={g.label} label={g.label}>
+                        {g.barrios.map((b) => <option key={b} value={b}>{b}</option>)}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+                <div className="admin-campo">
+                  <label className="etiqueta" htmlFor="a-tipo">Tipo de inmueble</label>
+                  <select id="a-tipo" className="campo" value={formData.tipo}
+                    onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}>
+                    {TIPOS_INMUEBLE.map((t) => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label style={labelStyle}>Dirección para el Mapa</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    value={formData.direccion}
-                    placeholder="Ej: Av. Uruguay 4500"
-                    style={{ ...inputStyle, flex: 1 }}
-                    onChange={e => setFormData({ ...formData, direccion: e.target.value, latitud: null, longitud: null })}
-                  />
-                  <button
-                    type="button"
-                    onClick={ubicarEnMapa}
-                    disabled={ubicando}
-                    style={{ ...inputStyle, width: 'auto', whiteSpace: 'nowrap', cursor: 'pointer', backgroundColor: '#fff', fontWeight: 700, opacity: ubicando ? 0.6 : 1 }}
-                  >
-                    {ubicando ? 'Buscando…' : '📍 Ubicar'}
+
+              <div className="admin-fila">
+                <div className="admin-campo">
+                  <label className="etiqueta" htmlFor="a-precio">Precio</label>
+                  <input id="a-precio" required type="number" inputMode="numeric" className="campo"
+                    value={formData.precio}
+                    onChange={(e) => setFormData({ ...formData, precio: e.target.value })}
+                    placeholder="0" />
+                </div>
+                <div className="admin-campo">
+                  <label className="etiqueta" htmlFor="a-moneda">Moneda</label>
+                  <select id="a-moneda" className="campo" value={formData.moneda}
+                    onChange={(e) => setFormData({ ...formData, moneda: e.target.value })}>
+                    <option>USD</option><option>ARS</option>
+                  </select>
+                </div>
+              </div>
+            </fieldset>
+
+            <fieldset className="admin-grupo">
+              <legend>Detalle</legend>
+              <div className="admin-campo">
+                <label className="etiqueta" htmlFor="a-desc">Descripción</label>
+                <textarea id="a-desc" required className="campo" value={formData.descripcion}
+                  onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                  style={{ height: 150, resize: 'vertical' }}
+                  placeholder="Contá lo que hace especial a esta propiedad…" />
+              </div>
+
+              <div className="admin-fila admin-fila-3">
+                <div className="admin-campo">
+                  <label className="etiqueta" htmlFor="a-dorm">Dormitorios</label>
+                  <input id="a-dorm" type="number" inputMode="numeric" className="campo"
+                    value={formData.habitaciones}
+                    onChange={(e) => setFormData({ ...formData, habitaciones: e.target.value })} placeholder="0" />
+                </div>
+                <div className="admin-campo">
+                  <label className="etiqueta" htmlFor="a-banos">Baños</label>
+                  <input id="a-banos" type="number" inputMode="numeric" className="campo"
+                    value={formData.banos}
+                    onChange={(e) => setFormData({ ...formData, banos: e.target.value })} placeholder="0" />
+                </div>
+                <div className="admin-campo">
+                  <label className="etiqueta" htmlFor="a-m2">Metros²</label>
+                  <input id="a-m2" type="number" inputMode="numeric" className="campo"
+                    value={formData.metros_cuadrados}
+                    onChange={(e) => setFormData({ ...formData, metros_cuadrados: e.target.value })} placeholder="0" />
+                </div>
+              </div>
+            </fieldset>
+
+            <fieldset className="admin-grupo">
+              <legend>Ubicación</legend>
+              <div className="admin-campo">
+                <label className="etiqueta" htmlFor="a-dir">Dirección</label>
+                <div className="admin-dir">
+                  <input id="a-dir" className="campo" value={formData.direccion}
+                    onChange={(e) => setFormData({ ...formData, direccion: e.target.value, latitud: null, longitud: null })}
+                    placeholder="Ej: Av. Uruguay 4500" />
+                  <button type="button" onClick={ubicarEnMapa} disabled={ubicando} className="admin-btn-ubicar">
+                    {ubicando ? 'Buscando…' : 'Ubicar'}
                   </button>
                 </div>
 
                 {formData.latitud != null && (
-                  <p style={{ fontSize: '0.78rem', color: '#166534', marginTop: '8px', lineHeight: 1.5 }}>
-                    ✓ Ubicada en el mapa
-                    {ubicacionHallada?.etiqueta ? `: ${ubicacionHallada.etiqueta.slice(0, 80)}` : ''}
-                    {ubicacionHallada?.precision === 'barrio' && ' (a nivel de barrio: no se encontró la calle exacta)'}
+                  <p className="admin-pista admin-pista-ok">
+                    Ubicada en el mapa
+                    {ubicacionHallada?.precision === 'barrio' && ' — a nivel de barrio, no se encontró la calle exacta'}
+                    {ubicacionHallada?.etiqueta && `: ${ubicacionHallada.etiqueta.slice(0, 70)}`}
                   </p>
                 )}
-                {ubicacionHallada && ubicacionHallada.encontrada === false && (
-                  <p style={{ fontSize: '0.78rem', color: '#92400e', marginTop: '8px', lineHeight: 1.5 }}>
+                {ubicacionHallada?.encontrada === false && (
+                  <p className="admin-pista admin-pista-aviso">
                     No pudimos ubicar esa dirección. La propiedad se guarda igual, pero no va a
                     aparecer en el mapa. Probá con una calle o barrio más conocido.
                   </p>
                 )}
-                <p style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '6px' }}>
+                <p className="admin-pista">
                   Si no la ubicás a mano, la buscamos automáticamente al guardar.
                 </p>
               </div>
-            </div>
+            </fieldset>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
-              <div style={{ flex: '2 1 200px' }}>
-                <label style={labelStyle}>Precio</label>
-                <input required type="number" value={formData.precio} style={inputStyle} onChange={e => setFormData({...formData, precio: e.target.value})} />
+            <fieldset className="admin-grupo">
+              <legend>Fotos</legend>
+              <input type="file" multiple accept="image/*" className="campo admin-file" onChange={handleFileChange} />
+              <p className="admin-pista">
+                Podés seleccionar varias a la vez. Máximo 10 MB por foto (JPG, PNG, WebP o AVIF).
+                {editandoId && ' Si no elegís fotos nuevas, se conservan las actuales.'}
+              </p>
+            </fieldset>
+
+            <fieldset className="admin-grupo">
+              <legend>Visibilidad</legend>
+              <div className="admin-fila">
+                <label className="admin-toggle">
+                  <input type="checkbox" checked={Boolean(formData.publicado)}
+                    onChange={(e) => setFormData({ ...formData, publicado: e.target.checked })} />
+                  <span>
+                    <strong>Publicada</strong>
+                    Visible en el catálogo público
+                  </span>
+                </label>
+                <label className="admin-toggle">
+                  <input type="checkbox" checked={Boolean(formData.destacado)}
+                    onChange={(e) => setFormData({ ...formData, destacado: e.target.checked })} />
+                  <span>
+                    <strong>Destacada</strong>
+                    Aparece en la portada
+                  </span>
+                </label>
               </div>
-              <div style={{ flex: '1 1 100px' }}>
-                <label style={labelStyle}>Moneda</label>
-                <select value={formData.moneda} style={inputStyle} onChange={e => setFormData({...formData, moneda: e.target.value})}>
-                    <option>USD</option><option>ARS</option>
+
+              <div className="admin-campo" style={{ marginTop: 16 }}>
+                <label className="etiqueta" htmlFor="a-vendedor">Vendedor responsable</label>
+                <select id="a-vendedor" className="campo" value={formData.vendedor_asignado}
+                  onChange={(e) => handleVendedorChange(e.target.value)}>
+                  <option value="papa">{CONTACTOS.papa.nombre}</option>
+                  <option value="socio">{CONTACTOS.socio.nombre}</option>
                 </select>
               </div>
-            </div>
+            </fieldset>
 
-            <div>
-              <label style={labelStyle}>Descripción detallada</label>
-              <textarea required value={formData.descripcion} style={{...inputStyle, height: '150px', resize: 'none'}} onChange={e => setFormData({...formData, descripcion: e.target.value})} />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '15px' }}>
-              <input type="number" placeholder="Dormitorios" value={formData.habitaciones} style={inputStyle} onChange={e => setFormData({...formData, habitaciones: e.target.value})} />
-              <input type="number" placeholder="Baños" value={formData.banos} style={inputStyle} onChange={e => setFormData({...formData, banos: e.target.value})} />
-              <input type="number" placeholder="M² Totales" value={formData.metros_cuadrados} style={inputStyle} onChange={e => setFormData({...formData, metros_cuadrados: e.target.value})} />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Fotografías</label>
-              <input type="file" multiple accept="image/*" style={{...inputStyle, padding: '15px', backgroundColor: 'white'}} onChange={handleFileChange} />
-              <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '10px' }}>Tip: Podés seleccionar varias fotos a la vez.</p>
-            </div>
-
-            {/* Visibilidad en el sitio público */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '15px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '18px', borderRadius: '18px', border: '1px solid #e2e8f0', backgroundColor: '#F8FAFC', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={Boolean(formData.publicado)}
-                  onChange={e => setFormData({ ...formData, publicado: e.target.checked })}
-                  style={{ width: '20px', height: '20px', margin: 0, padding: 0, minWidth: 'auto', accentColor: '#4F46E5' }}
-                />
-                <span>
-                  <span style={{ display: 'block', fontWeight: 900, color: '#020617', fontSize: '0.9rem' }}>Publicada</span>
-                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Visible en el catálogo público</span>
-                </span>
-              </label>
-
-              <label style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '18px', borderRadius: '18px', border: '1px solid #e2e8f0', backgroundColor: '#F8FAFC', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={Boolean(formData.destacado)}
-                  onChange={e => setFormData({ ...formData, destacado: e.target.checked })}
-                  style={{ width: '20px', height: '20px', margin: 0, padding: 0, minWidth: 'auto', accentColor: '#F59E0B' }}
-                />
-                <span>
-                  <span style={{ display: 'block', fontWeight: 900, color: '#020617', fontSize: '0.9rem' }}>Destacada</span>
-                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Aparece en la portada del sitio</span>
-                </span>
-              </label>
-            </div>
-
-            <button disabled={cargando} style={{ backgroundColor: '#020617', color: 'white', padding: '25px', borderRadius: '20px', fontWeight: '900', border: 'none', cursor: 'pointer', fontSize: '1.1rem', marginTop: '10px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
-              {cargando ? 'PROCESANDO...' : editandoId ? 'GUARDAR CAMBIOS' : 'PUBLICAR EN LA WEB'}
+            <button type="submit" disabled={cargando} className="btn btn-primario btn-bloque admin-guardar">
+              {cargando ? 'Guardando…' : editandoId ? 'Guardar cambios' : 'Publicar propiedad'}
             </button>
           </form>
         ) : (
-          
-          /* LISTADO GESTIONAR (Ajustado para que baje la botonera en móvil) */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {propiedades.length === 0 && <p style={{ textAlign: 'center', padding: '50px', color: '#94a3b8', fontWeight: '700' }}>No hay propiedades cargadas aún.</p>}
-            
-            {propiedades.map(p => (
-              <div key={p.id} style={{ backgroundColor: 'white', padding: '25px', borderRadius: '24px', display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #f1f5f9', boxShadow: '0 4px 10px rgba(0,0,0,0.03)' }}>
-                
-                {/* Info de la Casa */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flex: '1 1 300px' }}>
-                  <Image src={imagenPrincipal(p)} alt={p.titulo} width={90} height={90} unoptimized={imagenPrincipal(p).startsWith('data:')} style={{ width: '90px', height: '90px', borderRadius: '16px', objectFit: 'cover' }} />
-                  <div>
-                    <h3 style={{ margin: 0, fontWeight: '900', color: '#020617', fontSize: '1.2rem', lineHeight: 1.2 }}>{p.titulo}</h3>
-                    <p style={{ margin: '5px 0 10px', color: '#64748b', fontSize: '0.9rem', fontWeight: '700' }}>{formatPrecio(p)} — {p.zona}</p>
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '0.7rem', padding: '6px 12px', borderRadius: '8px', fontWeight: '900', backgroundColor: p.estado_interno === 'Disponible' ? '#dcfce7' : p.estado_interno === 'Reservada' ? '#fef3c7' : '#fee2e2', color: p.estado_interno === 'Disponible' ? '#166534' : p.estado_interno === 'Reservada' ? '#92400e' : '#991b1b' }}>
-                          {p.estado_interno?.toUpperCase()}
-                      </span>
-                      {!(p.publicado ?? true) && (
-                        <span style={{ fontSize: '0.7rem', padding: '6px 12px', borderRadius: '8px', fontWeight: '900', backgroundColor: '#e2e8f0', color: '#475569' }}>
-                          BORRADOR
-                        </span>
-                      )}
-                      {p.destacado && (
-                        <span style={{ fontSize: '0.7rem', padding: '6px 12px', borderRadius: '8px', fontWeight: '900', backgroundColor: '#fef3c7', color: '#92400e' }}>
-                          ★ DESTACADA
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Botonera de Acción (Baja sola si no hay espacio) */}
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-start' }}>
-                  <select aria-label="Cambiar estado" value={p.estado_interno || 'Disponible'} onChange={(e) => cambiarEstadoRapido(p.id, e.target.value)} style={{ padding: '12px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '800', border: '1px solid #94a3b8', cursor: 'pointer', backgroundColor: '#ffffff', flex: '1 1 120px', color: '#000000', WebkitAppearance: 'none', appearance: 'none' }}>
-                    {ESTADOS_PROPIEDAD.map(s => <option key={s}>{s}</option>)}
-                  </select>
-                  <button type="button" onClick={() => togglePublicado(p)} style={{ backgroundColor: (p.publicado ?? true) ? '#F1F5F9' : '#DCFCE7', border: '1px solid #e2e8f0', color: (p.publicado ?? true) ? '#475569' : '#166534', padding: '12px 20px', borderRadius: '12px', fontWeight: '800', cursor: 'pointer', fontSize: '0.8rem', flex: '1 1 auto' }}>
-                    {(p.publicado ?? true) ? 'DESPUBLICAR' : 'PUBLICAR'}
-                  </button>
-                  <button type="button" onClick={() => prepararEdicion(p)} style={{ backgroundColor: '#EEF2FF', border: '1px solid #e0e7ff', color: '#4F46E5', padding: '12px 20px', borderRadius: '12px', fontWeight: '800', cursor: 'pointer', fontSize: '0.8rem', flex: '1 1 auto' }}>EDITAR</button>
-                  <button type="button" onClick={() => eliminarPropiedad(p.id)} style={{ backgroundColor: '#FFF1F2', border: '1px solid #ffe4e6', color: '#E11D48', padding: '12px 20px', borderRadius: '12px', fontWeight: '800', cursor: 'pointer', fontSize: '0.8rem', flex: '1 1 auto' }}>BORRAR</button>
-                </div>
-
+          /* ================= LISTADO ================= */
+          <section className="admin-listado">
+            {propiedades.length === 0 ? (
+              <div className="vacio">
+                <p className="bajada" style={{ margin: '0 auto 20px' }}>
+                  Todavía no cargaste ninguna propiedad.
+                </p>
+                <button type="button" onClick={nuevaPropiedad} className="btn btn-primario">
+                  Cargar la primera
+                </button>
               </div>
-            ))}
-          </div>
+            ) : (
+              propiedades.map((p) => {
+                const publicada = p.publicado ?? true
+                const estado = p.estado_interno || p.estado
+                return (
+                  <article key={p.id} className={`admin-panel admin-item ${publicada ? '' : 'borrador'}`}>
+                    <div className="admin-item-foto">
+                      <Image
+                        src={imagenPrincipal(p)} alt={p.titulo}
+                        width={110} height={110}
+                        unoptimized={imagenPrincipal(p).startsWith('data:')}
+                        style={{ width: 110, height: 110, objectFit: 'cover', borderRadius: 'var(--r-md)' }}
+                      />
+                    </div>
+
+                    <div className="admin-item-info">
+                      <h2 className="admin-item-titulo">{p.titulo}</h2>
+                      <p className="admin-item-meta">
+                        {formatPrecio(p)} · {p.zona}
+                        {p.latitud == null && <span className="admin-item-sinmapa"> · sin ubicación</span>}
+                      </p>
+                      <div className="admin-item-insignias">
+                        <span className={`insignia ${estado === 'Disponible' ? 'insignia-venta' : estado === 'Reservada' ? 'insignia-reservada' : 'insignia-vendida'}`}>
+                          {estado}
+                        </span>
+                        {!publicada && <span className="insignia insignia-borrador">Borrador</span>}
+                        {p.destacado && <span className="insignia insignia-destacada">★ Portada</span>}
+                      </div>
+                    </div>
+
+                    <div className="admin-item-acciones">
+                      <select aria-label={`Estado de ${p.titulo}`} className="campo admin-select-mini"
+                        value={estado || 'Disponible'}
+                        onChange={(e) => cambiarEstadoRapido(p.id, e.target.value)}>
+                        {ESTADOS_PROPIEDAD.map((s) => <option key={s}>{s}</option>)}
+                      </select>
+                      <button type="button" onClick={() => togglePublicado(p)} className="admin-accion">
+                        {publicada ? 'Despublicar' : 'Publicar'}
+                      </button>
+                      <button type="button" onClick={() => prepararEdicion(p)} className="admin-accion admin-accion-principal">
+                        Editar
+                      </button>
+                      <button type="button" onClick={() => setABorrar(p)} className="admin-accion admin-accion-peligro">
+                        Borrar
+                      </button>
+                    </div>
+                  </article>
+                )
+              })
+            )}
+          </section>
         )}
-      </div>
+      </main>
+
+      {/* ================= MODAL DE BORRADO ================= */}
+      {aBorrar && (
+        <div className="admin-modal-velo" onClick={() => setABorrar(null)}>
+          <div className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="modal-titulo"
+            onClick={(e) => e.stopPropagation()}>
+            <h2 id="modal-titulo" className="admin-modal-titulo">¿Borrar esta propiedad?</h2>
+            <p className="admin-modal-texto">
+              Vas a eliminar <strong>{aBorrar.titulo}</strong> de forma permanente.
+              Esta acción no se puede deshacer.
+            </p>
+            <div className="admin-modal-acciones">
+              <button type="button" onClick={() => setABorrar(null)} className="btn btn-secundario">
+                Cancelar
+              </button>
+              <button type="button" onClick={confirmarBorrado} className="btn admin-btn-borrar">
+                Sí, borrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
-        .form-container { padding: 50px; }
-        @media (max-width: 600px) {
-          .form-container { padding: 25px !important; }
-          .hide-on-tiny { display: none; }
+        .admin { min-height: 100vh; background: var(--arena-100); }
+
+        /* ---------- BARRA ---------- */
+        .admin-barra {
+          position: sticky; top: 0; z-index: 100;
+          background: var(--selva-900);
+          border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .admin-barra-inner {
+          max-width: 1180px; margin-inline: auto;
+          padding: 14px clamp(18px, 4vw, 36px);
+          display: flex; align-items: center; justify-content: space-between; gap: 16px;
+        }
+        .admin-marca { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+        .admin-marca-logo {
+          display: grid; place-items: center;
+          width: 42px; height: 42px; border-radius: 13px;
+          background: var(--tierra-600); color: #fff;
+          font-family: var(--fuente-titulo); font-weight: 600; font-size: 1.05rem;
+        }
+        .admin-marca-texto { display: flex; flex-direction: column; line-height: 1.2; }
+        .admin-marca-texto strong {
+          font-family: var(--fuente-titulo); font-size: 1.05rem;
+          font-weight: 600; color: #fff;
+        }
+        .admin-marca-texto span {
+          font-size: 0.63rem; letter-spacing: 0.12em; text-transform: uppercase;
+          color: rgba(255,255,255,0.5);
+        }
+        .admin-barra-acciones { display: flex; align-items: center; gap: 9px; }
+        .admin-btn-fantasma, .admin-btn-salir {
+          padding: 9px 17px; border-radius: var(--r-full);
+          font-size: 0.87rem; font-weight: 600; text-decoration: none;
+          border: 1px solid rgba(255,255,255,0.2);
+          background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.9);
+          transition: background-color .18s;
+        }
+        .admin-btn-fantasma:hover { background: rgba(255,255,255,0.14); }
+        .admin-btn-salir { border-color: rgba(255,255,255,0.14); color: #F3B0A0; }
+        .admin-btn-salir:hover { background: rgba(255,255,255,0.1); }
+
+        /* ---------- CUERPO ---------- */
+        .admin-cuerpo {
+          max-width: 1180px; margin-inline: auto;
+          padding: clamp(24px, 4vw, 42px) clamp(18px, 4vw, 36px) 80px;
+        }
+
+        .admin-panel {
+          background: var(--superficie);
+          border: 1px solid var(--borde-suave);
+          border-radius: var(--r-lg);
+          box-shadow: var(--sombra-sm);
+        }
+
+        /* ---------- MÉTRICAS ---------- */
+        .admin-metricas {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 14px;
+          margin-bottom: 26px;
+        }
+        .admin-metrica {
+          background: var(--superficie);
+          border: 1px solid var(--borde-suave);
+          border-radius: var(--r-md);
+          padding: 18px 20px;
+        }
+        .admin-metrica-valor {
+          display: block;
+          font-family: var(--fuente-titulo);
+          font-size: 2rem; font-weight: 600;
+          color: var(--tierra-600); line-height: 1;
+        }
+        .admin-metrica-etiqueta {
+          display: block; margin-top: 6px;
+          font-size: 0.75rem; font-weight: 600;
+          letter-spacing: 0.1em; text-transform: uppercase;
+          color: var(--tinta-400);
+        }
+
+        /* ---------- PESTAÑAS ---------- */
+        .admin-pestanas {
+          display: flex; gap: 5px;
+          padding: 5px;
+          background: var(--arena-200);
+          border-radius: var(--r-full);
+          margin-bottom: 22px;
+        }
+        .admin-pestanas button {
+          flex: 1;
+          padding: 12px 18px;
+          border: none; background: transparent;
+          border-radius: var(--r-full);
+          font-size: 0.92rem; font-weight: 600;
+          color: var(--tinta-500);
+          transition: background-color .18s, color .18s, box-shadow .18s;
+        }
+        .admin-pestanas button.activa {
+          background: var(--superficie);
+          color: var(--tierra-600);
+          box-shadow: var(--sombra-sm);
+        }
+
+        .admin-aviso { margin-bottom: 20px; }
+        .admin-aviso-atencion { background: var(--aviso-bg); color: var(--aviso-fg); }
+
+        /* ---------- FORMULARIO ---------- */
+        .admin-form {
+          padding: clamp(22px, 3.5vw, 38px);
+          display: grid; gap: 26px;
+        }
+        .admin-form-cabecera {
+          display: flex; align-items: center; justify-content: space-between;
+          flex-wrap: wrap; gap: 12px;
+        }
+        .admin-form-cabecera h1 { font-size: clamp(1.4rem, 3vw, 1.8rem); }
+        .admin-enlace {
+          border: none; background: none;
+          color: var(--tierra-600); font-size: 0.87rem; font-weight: 600;
+          text-decoration: underline; text-underline-offset: 3px;
+        }
+
+        .admin-grupo { border: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+        .admin-grupo legend {
+          padding: 0 0 12px;
+          font-size: 0.72rem; font-weight: 700;
+          letter-spacing: 0.14em; text-transform: uppercase;
+          color: var(--tierra-600);
+          border-bottom: 1px solid var(--borde-suave);
+          width: 100%; margin-bottom: 4px;
+        }
+        .admin-fila { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .admin-fila-3 { grid-template-columns: repeat(3, 1fr); }
+        .admin-campo { display: grid; min-width: 0; }
+
+        .admin-dir { display: flex; gap: 9px; }
+        .admin-dir .campo { flex: 1; min-width: 0; }
+        .admin-btn-ubicar {
+          flex-shrink: 0;
+          padding: 0 20px;
+          border: 1px solid var(--borde);
+          border-radius: var(--r-md);
+          background: var(--arena-100);
+          font-size: 0.88rem; font-weight: 600;
+          color: var(--tinta-900);
+          transition: background-color .18s;
+        }
+        .admin-btn-ubicar:hover:not(:disabled) { background: var(--arena-200); }
+        .admin-btn-ubicar:disabled { opacity: 0.6; cursor: default; }
+
+        .admin-pista { font-size: 0.79rem; color: var(--tinta-400); margin-top: 8px; line-height: 1.55; }
+        .admin-pista-ok { color: var(--exito-fg); font-weight: 500; }
+        .admin-pista-aviso { color: var(--aviso-fg); font-weight: 500; }
+
+        .admin-file { padding: 12px; background: var(--arena-50); }
+
+        .admin-toggle {
+          display: flex; align-items: flex-start; gap: 12px;
+          padding: 16px 18px;
+          border: 1px solid var(--borde);
+          border-radius: var(--r-md);
+          background: var(--arena-50);
+          cursor: pointer;
+          transition: border-color .18s, background-color .18s;
+        }
+        .admin-toggle:has(input:checked) {
+          border-color: var(--tierra-400);
+          background: var(--tierra-50);
+        }
+        .admin-toggle input {
+          width: 19px; height: 19px; margin: 2px 0 0;
+          accent-color: var(--tierra-600);
+          flex-shrink: 0;
+        }
+        .admin-toggle strong {
+          display: block; font-size: 0.93rem; font-weight: 600;
+          color: var(--tinta-900); margin-bottom: 2px;
+        }
+        .admin-toggle span { font-size: 0.8rem; color: var(--tinta-500); line-height: 1.45; }
+
+        .admin-guardar { margin-top: 4px; }
+
+        /* ---------- LISTADO ---------- */
+        .admin-listado { display: grid; gap: 14px; }
+        .admin-item {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr) auto;
+          gap: 20px;
+          align-items: center;
+          padding: 18px 20px;
+        }
+        .admin-item.borrador { background: var(--arena-50); border-style: dashed; }
+        .admin-item-foto { flex-shrink: 0; line-height: 0; }
+        .admin-item-info { min-width: 0; display: grid; gap: 7px; }
+        .admin-item-titulo { font-size: 1.15rem; }
+        .admin-item-meta { font-size: 0.88rem; color: var(--tinta-500); }
+        .admin-item-sinmapa { color: var(--aviso-fg); }
+        .admin-item-insignias { display: flex; flex-wrap: wrap; gap: 6px; }
+
+        .admin-item-acciones {
+          display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+          justify-content: flex-end;
+        }
+        .admin-select-mini {
+          width: auto; min-width: 128px;
+          padding: 9px 34px 9px 13px;
+          font-size: 0.85rem; font-weight: 600;
+          background-position: right 12px center;
+        }
+        .admin-accion {
+          padding: 10px 17px;
+          border: 1px solid var(--borde);
+          border-radius: var(--r-full);
+          background: var(--superficie);
+          font-size: 0.85rem; font-weight: 600;
+          color: var(--tinta-700);
+          transition: background-color .18s, border-color .18s, color .18s;
+        }
+        .admin-accion:hover { background: var(--arena-100); border-color: var(--tinta-400); }
+        .admin-accion-principal {
+          background: var(--tierra-600); border-color: var(--tierra-600); color: #fff;
+        }
+        .admin-accion-principal:hover { background: var(--tierra-700); border-color: var(--tierra-700); }
+        .admin-accion-peligro { color: var(--error-fg); border-color: var(--error-bg); }
+        .admin-accion-peligro:hover { background: var(--error-bg); border-color: var(--error-fg); }
+
+        /* ---------- MODAL ---------- */
+        .admin-modal-velo {
+          position: fixed; inset: 0; z-index: 2000;
+          background: rgba(10, 33, 25, 0.55);
+          backdrop-filter: blur(4px);
+          display: grid; place-items: center;
+          padding: 20px;
+          animation: aparecer .2s ease;
+        }
+        @keyframes aparecer { from { opacity: 0 } to { opacity: 1 } }
+        .admin-modal {
+          width: 100%; max-width: 420px;
+          background: var(--superficie);
+          border-radius: var(--r-lg);
+          padding: clamp(24px, 4vw, 32px);
+          box-shadow: var(--sombra-xl);
+        }
+        .admin-modal-titulo { font-size: 1.35rem; margin-bottom: 10px; }
+        .admin-modal-texto { color: var(--tinta-500); font-size: 0.95rem; line-height: 1.6; }
+        .admin-modal-texto strong { color: var(--tinta-900); }
+        .admin-modal-acciones {
+          display: flex; gap: 10px; justify-content: flex-end;
+          margin-top: 26px; flex-wrap: wrap;
+        }
+        .admin-btn-borrar { background: var(--error-fg); color: #fff; }
+        .admin-btn-borrar:hover { background: var(--tierra-900); }
+
+        /* ---------- RESPONSIVE ---------- */
+        @media (max-width: 780px) {
+          .admin-fila, .admin-fila-3 { grid-template-columns: 1fr; }
+          .admin-item { grid-template-columns: auto minmax(0, 1fr); }
+          .admin-item-acciones { grid-column: 1 / -1; justify-content: flex-start; }
+        }
+        @media (max-width: 480px) {
+          .admin-marca-texto { display: none; }
+          .admin-item { grid-template-columns: 1fr; }
+          .admin-item-acciones > * { flex: 1 1 auto; }
         }
       `}</style>
-    </main>
+    </div>
   )
 }

@@ -12,6 +12,9 @@ const ENLACES = [
   { href: '/catalogo', etiqueta: 'Búsqueda', icono: '🔍' },
 ]
 
+// El panel de administración tiene su propia barra: acá no va la pública.
+const RUTAS_SIN_NAV = ['/admin']
+
 export default function Navbar() {
   const pathname = usePathname()
   const { sesion } = useSesion()
@@ -40,6 +43,9 @@ export default function Navbar() {
   }, [abierto])
 
   const esActivo = (href) => pathname === href
+
+  // Los hooks ya corrieron: recién acá podemos ocultarnos.
+  if (RUTAS_SIN_NAV.some((r) => pathname?.startsWith(r))) return null
 
   return (
     <>
