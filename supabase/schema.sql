@@ -150,7 +150,26 @@ alter table public.propiedades
 
 
 -- ------------------------------------------------------------
--- 6) Limpieza pendiente (NO se ejecuta: revisar antes)
+-- 6) Defensa en profundidad: quitarle a `anon` los GRANT de más
+-- ------------------------------------------------------------
+-- RLS ya bloquea estas operaciones, pero el rol `anon` seguía
+-- teniendo los GRANT de tabla. Si algún día se agrega una policy
+-- permisiva por error, los grants siguen frenando el acceso.
+
+-- El sitio público solo LEE propiedades.
+revoke insert, update, delete, truncate, references, trigger
+  on public.propiedades from anon;
+
+-- El formulario de contacto solo INSERTA consultas.
+-- Sin SELECT: los leads no deben poder leerse sin iniciar sesión.
+-- (supabase-js usa Prefer: return=minimal salvo que encadenes
+--  .select(), así que el insert sigue funcionando sin SELECT.)
+revoke select, update, delete, truncate, references, trigger
+  on public.consultas from anon;
+
+
+-- ------------------------------------------------------------
+-- 7) Limpieza pendiente (NO se ejecuta: revisar antes)
 -- ------------------------------------------------------------
 -- La tabla tiene DOS columnas de estado: `estado` (legacy) y
 -- `estado_interno` (la que usa la app). El panel ahora las mantiene
