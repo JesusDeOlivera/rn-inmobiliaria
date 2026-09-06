@@ -81,12 +81,31 @@ supabase/
 Pensado para **Vercel**. Cargar las variables de entorno en el proyecto y
 apuntar el dominio final en `NEXT_PUBLIC_SITE_URL`.
 
+## Arquitectura de renderizado
+
+Las páginas públicas son **Server Components**: traen los datos en el servidor
+con `supabaseServer` y se los pasan como props a componentes cliente chicos que
+solo aportan interactividad (`FormularioContacto`, `BotonFavorito`,
+`GaleriaPropiedad`, los filtros del catálogo).
+
+Esto importa para SEO: antes todo era `'use client'` con el fetch en un
+`useEffect`, así que el HTML que recibía Google no contenía ninguna propiedad.
+
+- `/`, `/propiedades`, `/catalogo` → estáticas con ISR de 60s
+- `/propiedad/[id]` → `generateStaticParams` pre-genera una página por
+  propiedad publicada; las nuevas se renderizan on-demand y quedan cacheadas
+- La ficha incluye JSON-LD (`schema.org/RealEstateListing`)
+
+> **Ojo con `loading.js`**: agregar uno en estas rutas reintroduce un límite de
+> Suspense que deja todo el `<main>` dentro de un `<div hidden>` a la espera de
+> un swap por JavaScript. Como las páginas ya están cacheadas por ISR no aporta
+> nada y perjudica a los crawlers que no ejecutan JS.
+
 ## Pendiente / ideas
 
-- Migrar `<img>` a `next/image` en todas las páginas (config ya lista en
-  `next.config.js`).
-- Pasar el catálogo y la home a Server Components (hoy hacen fetch en el
-  cliente).
 - Paginar el catálogo desde Supabase en lugar de traer todo y filtrar en el
-  navegador.
+  navegador (hoy alcanza de sobra; importa a partir de ~200 propiedades).
 - Reemplazar `confirm()` del panel por un modal propio.
+- Borrar la columna legacy `estado` (ver el final de `supabase/schema.sql`).
+- Activar "Leaked password protection" en Supabase Auth — **requiere plan Pro**;
+  en Free se puede subir el largo mínimo y exigir caracteres.
