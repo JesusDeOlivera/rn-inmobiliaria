@@ -1,63 +1,19 @@
-'use client'
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '../lib/supabase'
+import { supabaseServer } from '../lib/supabaseServer'
 import { listarDestacadas } from '../lib/propiedades'
 import { formatPrecio, imagenPrincipal, waLink } from '../lib/format'
 import { OFICINA, WHATSAPP_PRINCIPAL } from '../lib/config'
 import Foto from '../components/Foto'
+import FormularioContacto from './formulario-contacto'
+import BotonScroll from './boton-scroll'
 
-export default function Home() {
-  const [propiedades, setPropiedades] = useState([])
-  const [formContacto, setFormContacto] = useState({ nombre: '', email: '', mensaje: '' })
-  const [enviando, setEnviando] = useState(false)
-  const [feedback, setFeedback] = useState(null) // { tipo: 'ok'|'error', texto }
+// Server Component: las destacadas se traen en el servidor, así el HTML
+// inicial ya las contiene y Google las ve. Lo unico interactivo (el form
+// de contacto y el boton "Escribinos") vive en componentes cliente aparte.
+export const revalidate = 60
 
-  useEffect(() => {
-    let activo = true
-    listarDestacadas(supabase, 3).then(({ data }) => {
-      if (activo && data) setPropiedades(data)
-    })
-    return () => {
-      activo = false
-    }
-  }, [])
-
-  const scrollToSection = (id) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
-  }
-
-  const enviarFormulario = async (e) => {
-    e.preventDefault()
-    setEnviando(true)
-    setFeedback(null)
-
-    // 1) Guardamos el lead en la base (aunque el usuario no tenga WhatsApp).
-    const { error } = await supabase.from('consultas').insert([
-      {
-        nombre: formContacto.nombre,
-        email: formContacto.email,
-        mensaje: formContacto.mensaje,
-        origen: 'home',
-      },
-    ])
-
-    setEnviando(false)
-
-    if (error) {
-      setFeedback({
-        tipo: 'error',
-        texto: 'No pudimos registrar tu mensaje. Escribinos directo por WhatsApp.',
-      })
-    } else {
-      setFeedback({ tipo: 'ok', texto: '¡Listo! Te vamos a contactar a la brevedad.' })
-      setFormContacto({ nombre: '', email: '', mensaje: '' })
-    }
-
-    // 2) Abrimos WhatsApp con el mensaje pre-cargado.
-    const texto = `Hola RN Inmobiliaria. Soy ${formContacto.nombre}.\nMi Email: ${formContacto.email}\n\nMensaje: ${formContacto.mensaje}`
-    window.open(waLink(WHATSAPP_PRINCIPAL, texto), '_blank', 'noopener')
-  }
+export default async function Home() {
+  const { data: propiedades } = await listarDestacadas(supabaseServer, 3)
 
   return (
     <main style={{ minHeight: '100vh', backgroundColor: '#ffffff', fontFamily: 'system-ui, sans-serif' }}>
@@ -180,7 +136,7 @@ export default function Home() {
           </p>
           <div className="hero-buttons">
             <Link href="/propiedades" className="hero-btn-primary">Buscar Propiedades</Link>
-            <button type="button" className="hero-btn-secondary" onClick={() => scrollToSection('contacto')}>Escribinos</button>
+            <BotonScroll target="contacto" className="hero-btn-secondary">Escribinos</BotonScroll>
           </div>
         </div>
       </section>
@@ -312,56 +268,7 @@ export default function Home() {
           </div>
 
           <div className="contacto-form">
-            <form onSubmit={enviarFormulario} style={{ backgroundColor: 'white', padding: 'clamp(24px, 5vw, 44px)', borderRadius: '28px', boxShadow: '0 20px 50px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-              <h3 style={{ fontSize: 'clamp(1.4rem, 4vw, 1.8rem)', fontWeight: '900', color: '#020617', margin: '0 0 4px' }}>Envianos un mensaje</h3>
-
-              {feedback && (
-                <p role="status" style={{
-                  margin: 0, padding: '12px 16px', borderRadius: '12px', fontWeight: 700, fontSize: '0.9rem',
-                  backgroundColor: feedback.tipo === 'ok' ? '#dcfce7' : '#fee2e2',
-                  color: feedback.tipo === 'ok' ? '#166534' : '#991b1b',
-                }}>
-                  {feedback.texto}
-                </p>
-              )}
-
-              <div>
-                <label className="form-label" htmlFor="c-nombre">Nombre completo *</label>
-                <input
-                  id="c-nombre" required className="form-input"
-                  value={formContacto.nombre}
-                  onChange={e => setFormContacto({ ...formContacto, nombre: e.target.value })}
-                  type="text" placeholder="Juan Pérez" autoComplete="name"
-                />
-              </div>
-              <div>
-                <label className="form-label" htmlFor="c-email">Email *</label>
-                <input
-                  id="c-email" required className="form-input"
-                  value={formContacto.email}
-                  onChange={e => setFormContacto({ ...formContacto, email: e.target.value })}
-                  type="email" placeholder="juan@ejemplo.com" autoComplete="email" inputMode="email"
-                />
-              </div>
-              <div>
-                <label className="form-label" htmlFor="c-mensaje">Mensaje *</label>
-                <textarea
-                  id="c-mensaje" required className="form-input"
-                  value={formContacto.mensaje}
-                  onChange={e => setFormContacto({ ...formContacto, mensaje: e.target.value })}
-                  placeholder="Me interesa tasar mi propiedad..."
-                  style={{ height: '110px', resize: 'none' }}
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={enviando}
-                style={{ backgroundColor: '#4F46E5', color: 'white', padding: '18px', borderRadius: '14px', fontWeight: '900', fontSize: '1rem', border: 'none', cursor: enviando ? 'default' : 'pointer', opacity: enviando ? 0.7 : 1, marginTop: '4px', boxShadow: '0 8px 20px rgba(79,70,229,0.3)', minHeight: '52px', touchAction: 'manipulation' }}
-              >
-                {enviando ? 'Enviando...' : 'Enviar a WhatsApp 💬'}
-              </button>
-            </form>
+            <FormularioContacto />
           </div>
         </div>
       </section>

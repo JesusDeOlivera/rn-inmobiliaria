@@ -1,89 +1,84 @@
-'use client'
-import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { supabase } from '../../../lib/supabase'
-import { obtenerPropiedad, listarSimilares } from '../../../lib/propiedades'
-import { useFavoritos } from '../../../lib/useFavoritos'
-import Image from 'next/image'
+import { notFound } from 'next/navigation'
+import { supabaseServer } from '../../../lib/supabaseServer'
+import { obtenerPropiedad, listarSimilares, listarPropiedades } from '../../../lib/propiedades'
 import { formatPrecio, imagenPrincipal, waLink } from '../../../lib/format'
-import { CONTACTOS } from '../../../lib/config'
+import { CONTACTOS, SITE_URL, SITE_NAME } from '../../../lib/config'
 import Foto from '../../../components/Foto'
+import GaleriaPropiedad from '../../../components/GaleriaPropiedad'
+import BotonFavorito from '../../../components/BotonFavorito'
 
-export default function PropiedadDetalle() {
-  const { id } = useParams()
-  const [propiedad, setPropiedad] = useState(null)
-  const [similares, setSimilares] = useState([])
-  const [cargando, setCargando] = useState(true)
-  const [error, setError] = useState(null)
-  const [imagenActiva, setImagenActiva] = useState(0)
-  const [isLightboxOpen, setIsLightboxOpen] = useState(false)
+// Server Component: los datos se traen en el servidor, así el HTML que recibe
+// Google (y el que se ve al compartir el link) ya incluye título, precio,
+// descripción y fotos. Antes esto se pedía en un useEffect y el crawler
+// recibía una página vacía.
+export const revalidate = 60
 
-  const { esFavorito, toggleFavorito } = useFavoritos()
+// Pre-genera una página estática por propiedad publicada. Las que se carguen
+// después del build se renderizan on-demand y quedan cacheadas igual.
+export async function generateStaticParams() {
+  const { data } = await listarPropiedades(supabaseServer)
+  return data.map((p) => ({ id: String(p.id) }))
+}
 
-  useEffect(() => {
-    let activo = true
-    const cargarDatos = async () => {
-      setCargando(true)
-      const { data, error, noEncontrada } = await obtenerPropiedad(supabase, id)
-      if (!activo) return
-      if (error) {
-        setError(error)
-        setCargando(false)
-        return
-      }
-      if (noEncontrada) {
-        setPropiedad(null)
-        setCargando(false)
-        return
-      }
-      setPropiedad(data)
-      if (data) {
-        const { data: sim } = await listarSimilares(supabase, data)
-        if (activo && sim) setSimilares(sim)
-      }
-      setCargando(false)
-    }
-    cargarDatos()
-    return () => {
-      activo = false
-    }
-  }, [id])
+export default async function PropiedadDetalle({ params }) {
+  const { id } = await params
 
-  if (cargando) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff' }}>
-      <div style={{ width: '40px', height: '40px', border: '4px solid #f3f4f6', borderTop: '4px solid #020617', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-      <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-    </div>
-  )
+  const { data: propiedad, noEncontrada } = await obtenerPropiedad(supabaseServer, id)
+  if (noEncontrada || !propiedad) notFound()
 
-  if (error) return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', justifyContent: 'center', padding: '20px', textAlign: 'center' }}>
-      <h1 style={{ fontWeight: '900', color: '#020617' }}>No pudimos cargar la propiedad</h1>
-      <p style={{ color: '#64748b' }}>Revisá tu conexión e intentá de nuevo.</p>
-      <Link href="/propiedades" style={{ color: '#F59E0B', fontWeight: 'bold' }}>Volver al catálogo</Link>
-    </div>
-  )
-
-  if (!propiedad) return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-      <h1 style={{ fontWeight: '900', color: '#020617' }}>Propiedad no encontrada</h1>
-      <Link href="/" style={{ color: '#F59E0B', fontWeight: 'bold' }}>Volver al inicio</Link>
-    </div>
-  )
+  const { data: similares } = await listarSimilares(supabaseServer, propiedad)
 
   const vendedorNombre = propiedad.nombre_vendedor || CONTACTOS.papa.nombre
   const vendedorTelefono = propiedad.telefono_vendedor || CONTACTOS.papa.tel
   const vendedorEmail = propiedad.email_vendedor || CONTACTOS.papa.email
   const mensajeWsp = `Hola ${vendedorNombre}, me interesa la propiedad "${propiedad.titulo}" que vi en la web.`
   const imagenes = propiedad.imagenes || []
-  const esFav = esFavorito(propiedad.id)
+
+  // Datos estructurados para Google (rich results de inmuebles).
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'RealEstateListing',
+    name: propiedad.titulo,
+    description: propiedad.descripcion || undefined,
+    url: `${SITE_URL}/propiedad/${propiedad.id}`,
+    image: imagenes.length ? imagenes : undefined,
+    datePosted: propiedad.created_at,
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: propiedad.direccion || undefined,
+      addressLocality: propiedad.zona,
+      addressRegion: 'Misiones',
+      addressCountry: 'AR',
+    },
+    offers: Number(propiedad.precio) > 0
+      ? {
+          '@type': 'Offer',
+          price: Number(propiedad.precio),
+          priceCurrency: propiedad.moneda || 'USD',
+          availability:
+            propiedad.estado_interno === 'Vendida'
+              ? 'https://schema.org/SoldOut'
+              : 'https://schema.org/InStock',
+        }
+      : undefined,
+    numberOfBedrooms: propiedad.habitaciones || undefined,
+    numberOfBathroomsTotal: propiedad.banos || undefined,
+    floorSize: propiedad.metros_cuadrados
+      ? { '@type': 'QuantitativeValue', value: propiedad.metros_cuadrados, unitCode: 'MTK' }
+      : undefined,
+    broker: { '@type': 'RealEstateAgent', name: SITE_NAME },
+  }
 
   return (
     <main style={{ minHeight: '100vh', backgroundColor: '#F8FAFC', fontFamily: 'system-ui, sans-serif' }}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 20px' }}>
 
-        {/* BOTÓN VOLVER */}
         <Link href="/propiedades" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', textDecoration: 'none', fontWeight: '700', marginBottom: '25px', fontSize: '0.85rem' }}>
           <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19l-7-7 7-7"></path></svg>
           VOLVER AL CATÁLOGO
@@ -91,67 +86,25 @@ export default function PropiedadDetalle() {
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '30px', alignItems: 'start' }}>
 
-          {/* GALERÍA */}
+          {/* GALERÍA (cliente: necesita estado) + DESCRIPCIÓN (servidor) */}
           <div style={{ flex: '1 1 650px', minWidth: '300px' }}>
-            <div style={{
-                position: 'relative', borderRadius: '24px', overflow: 'hidden',
-                height: 'auto', aspectRatio: '4/3',
-                maxHeight: '550px', backgroundColor: '#fff', boxShadow: '0 15px 35px rgba(0,0,0,0.05)'
-            }}>
-               {propiedad.estado_interno !== 'Disponible' && (
-                <div style={{ position: 'absolute', top: '20px', left: '20px', backgroundColor: propiedad.estado_interno === 'Reservada' ? '#F59E0B' : '#EF4444', color: 'white', padding: '8px 20px', borderRadius: '12px', fontWeight: '900', zIndex: 10, fontSize: '0.75rem' }}>
-                    {propiedad.estado_interno?.toUpperCase()}
-                </div>
-               )}
-               <Foto
-                onClick={() => setIsLightboxOpen(true)}
-                src={imagenes[imagenActiva]}
-                alt={`${propiedad.titulo} — foto ${imagenActiva + 1}`}
-                priority
-                sizes="(max-width: 768px) 100vw, 650px"
-                style={{ cursor: 'zoom-in' }}
-               />
-            </div>
+            <GaleriaPropiedad
+              imagenes={imagenes}
+              titulo={propiedad.titulo}
+              estadoInterno={propiedad.estado_interno}
+            />
 
-            {/* MINIATURAS */}
-            {imagenes.length > 1 && (
-              <div style={{ display: 'flex', gap: '12px', marginTop: '15px', overflowX: 'auto', paddingBottom: '10px', scrollbarWidth: 'none' }}>
-                {imagenes.map((img, idx) => (
-                  <Image
-                    key={idx} src={img}
-                    alt={`${propiedad.titulo} — miniatura ${idx + 1}`}
-                    width={90} height={70}
-                    onClick={() => setImagenActiva(idx)}
-                    style={{
-                        flexShrink: 0, width: '90px', height: '70px', objectFit: 'cover',
-                        borderRadius: '12px', cursor: 'pointer',
-                        border: imagenActiva === idx ? '3px solid #4F46E5' : '3px solid transparent',
-                        transition: '0.2s'
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* DESCRIPCIÓN */}
             <div style={{ marginTop: '30px', backgroundColor: 'white', padding: '30px', borderRadius: '24px', border: '1px solid #f1f5f9' }}>
-               <h3 style={{ fontWeight: '900', fontSize: '1.4rem', color: '#020617', marginBottom: '15px' }}>Descripción</h3>
-               <p style={{ color: '#475569', lineHeight: '1.7', fontSize: '1rem', whiteSpace: 'pre-line' }}>{propiedad.descripcion}</p>
+              <h2 style={{ fontWeight: '900', fontSize: '1.4rem', color: '#020617', marginBottom: '15px' }}>Descripción</h2>
+              <p style={{ color: '#475569', lineHeight: '1.7', fontSize: '1rem', whiteSpace: 'pre-line' }}>{propiedad.descripcion}</p>
             </div>
           </div>
 
-          {/* INFO */}
+          {/* INFO (servidor, salvo el corazón) */}
           <div style={{ flex: '1 1 350px', minWidth: '300px' }}>
             <div style={{ backgroundColor: 'white', padding: '35px', borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: '0 10px 30px rgba(0,0,0,0.02)', position: 'relative' }}>
 
-              <button
-                type="button"
-                aria-label={esFav ? 'Quitar de favoritos' : 'Agregar a favoritos'}
-                onClick={(e) => toggleFavorito(propiedad.id, e)}
-                style={{ position: 'absolute', top: '30px', right: '30px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', width: '45px', height: '45px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '1.3rem' }}
-              >
-                {esFav ? '❤️' : '🤍'}
-              </button>
+              <BotonFavorito id={propiedad.id} variante="detalle" />
 
               <span style={{ color: '#F59E0B', fontWeight: '900', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}>📍 {propiedad.zona}</span>
               <h1 style={{ fontSize: '2rem', fontWeight: '900', color: '#020617', margin: '12px 0', lineHeight: 1.2, paddingRight: '40px' }}>{propiedad.titulo}</h1>
@@ -161,14 +114,14 @@ export default function PropiedadDetalle() {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '30px' }}>
-                 <div style={{ padding: '15px', backgroundColor: '#F8FAFC', borderRadius: '16px', textAlign: 'center' }}>
-                    <span style={{ display: 'block', fontSize: '1.2rem', marginBottom: '5px' }}>🛏️</span>
-                    <span style={{ fontWeight: '800', color: '#020617', fontSize: '0.9rem' }}>{propiedad.habitaciones} Dorm.</span>
-                 </div>
-                 <div style={{ padding: '15px', backgroundColor: '#F8FAFC', borderRadius: '16px', textAlign: 'center' }}>
-                    <span style={{ display: 'block', fontSize: '1.2rem', marginBottom: '5px' }}>🚿</span>
-                    <span style={{ fontWeight: '800', color: '#020617', fontSize: '0.9rem' }}>{propiedad.banos} Baños</span>
-                 </div>
+                <div style={{ padding: '15px', backgroundColor: '#F8FAFC', borderRadius: '16px', textAlign: 'center' }}>
+                  <span style={{ display: 'block', fontSize: '1.2rem', marginBottom: '5px' }}>🛏️</span>
+                  <span style={{ fontWeight: '800', color: '#020617', fontSize: '0.9rem' }}>{propiedad.habitaciones} Dorm.</span>
+                </div>
+                <div style={{ padding: '15px', backgroundColor: '#F8FAFC', borderRadius: '16px', textAlign: 'center' }}>
+                  <span style={{ display: 'block', fontSize: '1.2rem', marginBottom: '5px' }}>🚿</span>
+                  <span style={{ fontWeight: '800', color: '#020617', fontSize: '0.9rem' }}>{propiedad.banos} Baños</span>
+                </div>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -181,7 +134,6 @@ export default function PropiedadDetalle() {
               </div>
             </div>
 
-            {/* MAPA */}
             {propiedad.direccion && (
               <div style={{ marginTop: '25px', borderRadius: '24px', overflow: 'hidden', border: '1px solid #f1f5f9' }}>
                 <iframe
@@ -220,22 +172,6 @@ export default function PropiedadDetalle() {
           </div>
         )}
       </div>
-
-      {/* LIGHTBOX */}
-      {isLightboxOpen && (
-        <div onClick={() => setIsLightboxOpen(false)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.98)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- lightbox: dimensiones dinámicas, no aplica next/image */}
-            <img src={imagenes[imagenActiva]} alt={`${propiedad.titulo} — foto ${imagenActiva + 1}`} style={{ maxWidth: '95%', maxHeight: '80vh', borderRadius: '12px' }} />
-            <button
-              type="button"
-              aria-label="Cerrar"
-              onClick={(e) => { e.stopPropagation(); setIsLightboxOpen(false) }}
-              style={{ position: 'absolute', top: '20px', right: '20px', background: 'white', border: 'none', width: '44px', height: '44px', borderRadius: '50%', fontSize: '1.5rem', fontWeight: 'bold', cursor: 'pointer' }}
-            >
-              ×
-            </button>
-        </div>
-      )}
     </main>
   )
 }
