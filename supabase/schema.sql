@@ -176,3 +176,21 @@ revoke select, update, delete, truncate, references, trigger
 -- sincronizadas. Cuando confirmes que nada más lee `estado`:
 --
 --   alter table public.propiedades drop column estado;
+
+
+-- ------------------------------------------------------------
+-- 8) Coordenadas para el mapa
+-- ------------------------------------------------------------
+-- El mapa del catálogo solo podía mostrar una ubicación porque el embed de
+-- Google Maps acepta una sola consulta por iframe. Con lat/lng por propiedad
+-- se dibuja un marcador por cada una (Leaflet + OpenStreetMap).
+alter table public.propiedades
+  add column if not exists latitud  double precision,
+  add column if not exists longitud double precision;
+
+comment on column public.propiedades.latitud  is 'Geocodificada desde `direccion` con Nominatim (OpenStreetMap) al guardar en el panel.';
+comment on column public.propiedades.longitud is 'Geocodificada desde `direccion` con Nominatim (OpenStreetMap) al guardar en el panel.';
+
+create index if not exists propiedades_con_coords_idx
+  on public.propiedades (latitud, longitud)
+  where latitud is not null and longitud is not null;

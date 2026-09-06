@@ -10,7 +10,8 @@ listado.
 - **React 19**
 - **Supabase** — base de datos (`propiedades`, `consultas`), auth del panel y
   storage de imágenes (`imagenes_propiedades`)
-- **Tailwind CSS 4** (usado en `/login`; el resto usa estilos inline)
+- **Leaflet + OpenStreetMap** — mapa de propiedades (sin API key)
+- **Tailwind CSS 4** + sistema de diseño propio en `app/globals.css`
 
 ## Puesta en marcha
 
@@ -39,6 +40,38 @@ Supabase. Ese script activa **Row Level Security** (sin él, cualquiera con la
 anon key puede editar/borrar propiedades), crea la tabla `consultas` para los
 leads del formulario de contacto y define las políticas del bucket de imágenes.
 
+## Diseño
+
+La identidad visual toma los colores de la provincia: **tierra roja**
+(laterita) como color primario, **verde selva** para las superficies oscuras,
+y ocre y agua como acentos, sobre neutros cálidos (arena) en lugar de
+blancos y grises azulados.
+
+Tipografía: **Fraunces** (serif variable) para títulos, **Inter** para texto.
+
+Todo vive como tokens y clases de componente en
+[`app/globals.css`](app/globals.css) — `.btn`, `.card-prop`, `.insignia`,
+`.campo`, `.panel`, `.seccion`… Antes casi todo eran estilos inline
+repetidos página por página. Al tocar estilos, usar y extender esas clases
+en vez de volver a inline.
+
+## Mapa y geocodificación
+
+El mapa de la búsqueda avanzada dibuja **un marcador por propiedad** con
+Leaflet + OpenStreetMap. Requiere que la propiedad tenga `latitud`/`longitud`.
+
+Esas coordenadas se obtienen con **Nominatim** (gratis, sin API key) desde
+`app/api/geocodificar` — un endpoint solo para autenticados, porque Nominatim
+limita el uso y pide un User-Agent identificable. El panel las busca al tocar
+"Ubicar" o automáticamente al guardar.
+
+> Las direcciones cargadas suelen ser imprecisas (`"Lopez y Planes y Las
+> Heras"`). Por eso [`lib/geocodificar.js`](lib/geocodificar.js) resuelve
+> calle y barrio por separado y los contrasta: si el match de calle cae a más
+> de 2,5 km del barrio declarado, gana el barrio. Un pin en el lugar
+> equivocado es peor que uno aproximado pero correcto. La UI siempre aclara
+> que la ubicación es aproximada.
+
 ## Estructura
 
 ```
@@ -58,10 +91,17 @@ lib/
   supabaseServer.js       Cliente para el servidor (metadata, sitemap)
   propiedades.js          Consultas a la tabla `propiedades`
   format.js               formatPrecio / waLink / placeholder de imagen
+  geocodificar.js         Nominatim + chequeo de coherencia calle/barrio
+  constantes-mapa.js      Centro de Posadas y zoom por defecto
   useFavoritos.js         Hook de favoritos (sincroniza entre pestañas)
   useSesion.js            Hook de sesión de Supabase
 components/
   Navbar.js               Navbar compartido
+  CardPropiedad.js        Tarjeta única de propiedad (todo el sitio)
+  MapaPropiedades.js      Mapa Leaflet con un marcador por propiedad
+  GaleriaPropiedad.js     Galería + lightbox de la ficha
+  BotonFavorito.js        Botón de favorito (cliente)
+  Foto.js                 Wrapper de next/image
   Spinner.js              Estado de carga
 supabase/
   schema.sql              RLS + tabla consultas + políticas de storage
