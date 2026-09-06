@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import Navbar from '../components/Navbar'
+import { SITE_URL, SITE_NAME, SITE_DESCRIPTION } from '../lib/config'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -15,13 +16,20 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: 'RN Inmobiliaria',
-    template: '%s | RN Inmobiliaria',
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
   },
-  description: 'Tu agencia inmobiliaria de confianza en Misiones',
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'RN Inmobiliaria' },
+  description: SITE_DESCRIPTION,
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: SITE_NAME },
   formatDetection: { telephone: false, email: false, address: false },
+  openGraph: {
+    type: 'website',
+    locale: 'es_AR',
+    siteName: SITE_NAME,
+    url: SITE_URL,
+  },
 }
 
 export const viewport = {
@@ -38,7 +46,7 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="es" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="es" data-scroll-behavior="smooth" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body style={{ margin: 0, minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
 
         {/* Navbar compartido — aparece en TODAS las páginas automáticamente */}
