@@ -7,6 +7,21 @@ import { supabase } from '../../lib/supabase'
 import { GRUPOS_BARRIOS, TIPOS_INMUEBLE, ESTADOS_PROPIEDAD } from '../../lib/barrios'
 import { CONTACTOS } from '../../lib/config'
 import { formatPrecio, imagenPrincipal } from '../../lib/format'
+import { listarPropiedades } from '../../lib/propiedades'
+
+// Valores por defecto del formulario de alta.
+const FORM_VACIO = {
+  titulo: '', descripcion: '', precio: '', moneda: 'USD',
+  tipo: 'Casa Usada', zona: 'Centro', imagenes: [],
+  habitaciones: '', banos: '', metros_cuadrados: '', direccion: '',
+  estado_interno: 'Disponible',
+  publicado: true,
+  destacado: false,
+  vendedor_asignado: 'papa',
+  nombre_vendedor: CONTACTOS.papa.nombre,
+  telefono_vendedor: CONTACTOS.papa.tel,
+  email_vendedor: CONTACTOS.papa.email,
+}
 
 export default function AdminPanel() {
   const router = useRouter()
@@ -17,16 +32,7 @@ export default function AdminPanel() {
   const [mensaje, setMensaje] = useState('')
   const [editandoId, setEditandoId] = useState(null)
 
-  const [formData, setFormData] = useState({
-    titulo: '', descripcion: '', precio: '', moneda: 'USD',
-    tipo: 'Casa Usada', zona: 'Centro', imagenes: [],
-    habitaciones: '', banos: '', metros_cuadrados: '', direccion: '',
-    estado_interno: 'Disponible',
-    vendedor_asignado: 'papa',
-    nombre_vendedor: CONTACTOS.papa.nombre,
-    telefono_vendedor: CONTACTOS.papa.tel,
-    email_vendedor: CONTACTOS.papa.email
-  })
+  const [formData, setFormData] = useState(FORM_VACIO)
 
   useEffect(() => {
     const checkUser = async () => {
@@ -37,13 +43,14 @@ export default function AdminPanel() {
     checkUser()
   }, [router])
 
+  // El panel ve TODO, incluidas las no publicadas (a diferencia del sitio público).
   const fetchPropiedades = async () => {
-    const { data, error } = await supabase.from('propiedades').select('*').order('created_at', { ascending: false })
+    const { data, error } = await listarPropiedades(supabase, { incluirNoPublicadas: true })
     if (error) {
-      setMensaje('Error al cargar propiedades: ' + error.message)
+      setMensaje('Error al cargar propiedades: ' + error)
       return
     }
-    if (data) setPropiedades(data)
+    setPropiedades(data)
   }
 
   const handleLogout = async () => {
@@ -68,7 +75,14 @@ export default function AdminPanel() {
   }
 
   const prepararEdicion = (p) => {
-    setFormData({ ...p })
+    setFormData({
+      ...FORM_VACIO,
+      ...p,
+      // La base permite null en estos campos; el formulario necesita booleanos.
+      publicado: p.publicado ?? true,
+      destacado: p.destacado ?? false,
+      estado_interno: p.estado_interno || p.estado || 'Disponible',
+    })
     setEditandoId(p.id)
     setTab('cargar')
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -104,6 +118,11 @@ export default function AdminPanel() {
         banos: parseInt(formData.banos, 10) || 0,
         metros_cuadrados: parseFloat(formData.metros_cuadrados) || 0,
         imagenes: finalImages,
+        publicado: Boolean(formData.publicado),
+        destacado: Boolean(formData.destacado),
+        // `estado` es una columna legacy que duplica `estado_interno`.
+        // La mantenemos sincronizada para que no se desfasen.
+        estado: formData.estado_interno,
       }
       delete objetoPropiedad.id
       delete objetoPropiedad.created_at
@@ -119,6 +138,7 @@ export default function AdminPanel() {
       }
 
       setEditandoId(null)
+      setFormData(FORM_VACIO)
       fetchPropiedades()
       setTab('gestionar')
     } catch (err) { setMensaje('Error: ' + err.message) }
@@ -127,7 +147,20 @@ export default function AdminPanel() {
   }
 
   const cambiarEstadoRapido = async (id, nuevoEstado) => {
-    const { error } = await supabase.from('propiedades').update({ estado_interno: nuevoEstado }).eq('id', id)
+    // Mantenemos sincronizada la columna legacy `estado`.
+    const { error } = await supabase
+      .from('propiedades')
+      .update({ estado_interno: nuevoEstado, estado: nuevoEstado })
+      .eq('id', id)
+    if (error) setMensaje('Error: ' + error.message)
+    fetchPropiedades()
+  }
+
+  const togglePublicado = async (p) => {
+    const { error } = await supabase
+      .from('propiedades')
+      .update({ publicado: !(p.publicado ?? true) })
+      .eq('id', p.id)
     if (error) setMensaje('Error: ' + error.message)
     fetchPropiedades()
   }
@@ -168,7 +201,7 @@ export default function AdminPanel() {
         
         {/* TABS SELECTOR */}
         <div style={{ display: 'flex', flexWrap: 'wrap', backgroundColor: '#e2e8f0', padding: '6px', borderRadius: '20px', marginBottom: '30px', gap: '5px' }}>
-            <button onClick={() => { setTab('gestionar'); setEditandoId(null); }} style={{ flex: '1 1 150px', padding: '15px', borderRadius: '16px', border: 'none', fontWeight: '800', cursor: 'pointer', backgroundColor: tab === 'gestionar' ? '#ffffff' : 'transparent', color: '#020617', transition: '0.3s' }}>
+            <button type="button" onClick={() => { setTab('gestionar'); setEditandoId(null); setFormData(FORM_VACIO); }} style={{ flex: '1 1 150px', padding: '15px', borderRadius: '16px', border: 'none', fontWeight: '800', cursor: 'pointer', backgroundColor: tab === 'gestionar' ? '#ffffff' : 'transparent', color: '#020617', transition: '0.3s' }}>
                 GESTIONAR LISTADO
             </button>
             <button onClick={() => setTab('cargar')} style={{ flex: '1 1 150px', padding: '15px', borderRadius: '16px', border: 'none', fontWeight: '800', cursor: 'pointer', backgroundColor: tab === 'cargar' ? '#ffffff' : 'transparent', color: '#020617', transition: '0.3s' }}>
@@ -261,6 +294,35 @@ export default function AdminPanel() {
               <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '10px' }}>Tip: Podés seleccionar varias fotos a la vez.</p>
             </div>
 
+            {/* Visibilidad en el sitio público */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '15px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '18px', borderRadius: '18px', border: '1px solid #e2e8f0', backgroundColor: '#F8FAFC', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(formData.publicado)}
+                  onChange={e => setFormData({ ...formData, publicado: e.target.checked })}
+                  style={{ width: '20px', height: '20px', margin: 0, padding: 0, minWidth: 'auto', accentColor: '#4F46E5' }}
+                />
+                <span>
+                  <span style={{ display: 'block', fontWeight: 900, color: '#020617', fontSize: '0.9rem' }}>Publicada</span>
+                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Visible en el catálogo público</span>
+                </span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '18px', borderRadius: '18px', border: '1px solid #e2e8f0', backgroundColor: '#F8FAFC', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(formData.destacado)}
+                  onChange={e => setFormData({ ...formData, destacado: e.target.checked })}
+                  style={{ width: '20px', height: '20px', margin: 0, padding: 0, minWidth: 'auto', accentColor: '#F59E0B' }}
+                />
+                <span>
+                  <span style={{ display: 'block', fontWeight: 900, color: '#020617', fontSize: '0.9rem' }}>Destacada</span>
+                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Aparece en la portada del sitio</span>
+                </span>
+              </label>
+            </div>
+
             <button disabled={cargando} style={{ backgroundColor: '#020617', color: 'white', padding: '25px', borderRadius: '20px', fontWeight: '900', border: 'none', cursor: 'pointer', fontSize: '1.1rem', marginTop: '10px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
               {cargando ? 'PROCESANDO...' : editandoId ? 'GUARDAR CAMBIOS' : 'PUBLICAR EN LA WEB'}
             </button>
@@ -280,9 +342,21 @@ export default function AdminPanel() {
                   <div>
                     <h3 style={{ margin: 0, fontWeight: '900', color: '#020617', fontSize: '1.2rem', lineHeight: 1.2 }}>{p.titulo}</h3>
                     <p style={{ margin: '5px 0 10px', color: '#64748b', fontSize: '0.9rem', fontWeight: '700' }}>{formatPrecio(p)} — {p.zona}</p>
-                    <span style={{ fontSize: '0.7rem', padding: '6px 12px', borderRadius: '8px', fontWeight: '900', backgroundColor: p.estado_interno === 'Disponible' ? '#dcfce7' : p.estado_interno === 'Reservada' ? '#fef3c7' : '#fee2e2', color: p.estado_interno === 'Disponible' ? '#166534' : p.estado_interno === 'Reservada' ? '#92400e' : '#991b1b' }}>
-                        {p.estado_interno?.toUpperCase()}
-                    </span>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '0.7rem', padding: '6px 12px', borderRadius: '8px', fontWeight: '900', backgroundColor: p.estado_interno === 'Disponible' ? '#dcfce7' : p.estado_interno === 'Reservada' ? '#fef3c7' : '#fee2e2', color: p.estado_interno === 'Disponible' ? '#166534' : p.estado_interno === 'Reservada' ? '#92400e' : '#991b1b' }}>
+                          {p.estado_interno?.toUpperCase()}
+                      </span>
+                      {!(p.publicado ?? true) && (
+                        <span style={{ fontSize: '0.7rem', padding: '6px 12px', borderRadius: '8px', fontWeight: '900', backgroundColor: '#e2e8f0', color: '#475569' }}>
+                          BORRADOR
+                        </span>
+                      )}
+                      {p.destacado && (
+                        <span style={{ fontSize: '0.7rem', padding: '6px 12px', borderRadius: '8px', fontWeight: '900', backgroundColor: '#fef3c7', color: '#92400e' }}>
+                          ★ DESTACADA
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -291,6 +365,9 @@ export default function AdminPanel() {
                   <select aria-label="Cambiar estado" value={p.estado_interno || 'Disponible'} onChange={(e) => cambiarEstadoRapido(p.id, e.target.value)} style={{ padding: '12px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '800', border: '1px solid #94a3b8', cursor: 'pointer', backgroundColor: '#ffffff', flex: '1 1 120px', color: '#000000', WebkitAppearance: 'none', appearance: 'none' }}>
                     {ESTADOS_PROPIEDAD.map(s => <option key={s}>{s}</option>)}
                   </select>
+                  <button type="button" onClick={() => togglePublicado(p)} style={{ backgroundColor: (p.publicado ?? true) ? '#F1F5F9' : '#DCFCE7', border: '1px solid #e2e8f0', color: (p.publicado ?? true) ? '#475569' : '#166534', padding: '12px 20px', borderRadius: '12px', fontWeight: '800', cursor: 'pointer', fontSize: '0.8rem', flex: '1 1 auto' }}>
+                    {(p.publicado ?? true) ? 'DESPUBLICAR' : 'PUBLICAR'}
+                  </button>
                   <button type="button" onClick={() => prepararEdicion(p)} style={{ backgroundColor: '#EEF2FF', border: '1px solid #e0e7ff', color: '#4F46E5', padding: '12px 20px', borderRadius: '12px', fontWeight: '800', cursor: 'pointer', fontSize: '0.8rem', flex: '1 1 auto' }}>EDITAR</button>
                   <button type="button" onClick={() => eliminarPropiedad(p.id)} style={{ backgroundColor: '#FFF1F2', border: '1px solid #ffe4e6', color: '#E11D48', padding: '12px 20px', borderRadius: '12px', fontWeight: '800', cursor: 'pointer', fontSize: '0.8rem', flex: '1 1 auto' }}>BORRAR</button>
                 </div>

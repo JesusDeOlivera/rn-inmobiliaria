@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
-import { listarPropiedades } from '../lib/propiedades'
+import { listarDestacadas } from '../lib/propiedades'
 import { formatPrecio, imagenPrincipal, waLink } from '../lib/format'
 import { OFICINA, WHATSAPP_PRINCIPAL } from '../lib/config'
 import Foto from '../components/Foto'
@@ -15,7 +15,7 @@ export default function Home() {
 
   useEffect(() => {
     let activo = true
-    listarPropiedades(supabase, { limite: 3 }).then(({ data }) => {
+    listarDestacadas(supabase, 3).then(({ data }) => {
       if (activo && data) setPropiedades(data)
     })
     return () => {

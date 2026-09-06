@@ -25,10 +25,15 @@ export default function PropiedadDetalle() {
     let activo = true
     const cargarDatos = async () => {
       setCargando(true)
-      const { data, error } = await obtenerPropiedad(supabase, id)
+      const { data, error, noEncontrada } = await obtenerPropiedad(supabase, id)
       if (!activo) return
       if (error) {
         setError(error)
+        setCargando(false)
+        return
+      }
+      if (noEncontrada) {
+        setPropiedad(null)
         setCargando(false)
         return
       }

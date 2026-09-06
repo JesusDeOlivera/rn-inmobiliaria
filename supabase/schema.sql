@@ -1,25 +1,32 @@
 -- ============================================================
---  RN Inmobiliaria — Esquema y políticas de seguridad (RLS)
+--  RN Inmobiliaria — Seguridad y esquema
+--  Proyecto Supabase: daipvxjkxfxfsmwsoxfr
 --
 --  Ejecutar en el SQL Editor de Supabase.
---  IMPORTANTE: sin estas políticas, cualquiera con la anon key
---  (que viaja al navegador) puede insertar/editar/borrar
---  propiedades. El chequeo de sesión en /admin es solo visual.
+--
+--  CONTEXTO: al auditar el proyecto en producción se encontró que
+--  RLS ya estaba activo en `propiedades`, PERO con dos agujeros:
+--
+--    1. Policy "Permitir insertar propiedades a todos" -> INSERT
+--       abierto al rol `public`. Cualquiera con la anon key (que
+--       viaja al navegador) podía crear propiedades.
+--
+--    2. Policy "Public Access" en storage.objects -> cmd = ALL para
+--       el rol `public` sobre el bucket imagenes_propiedades.
+--       Cualquiera podía subir, sobrescribir y BORRAR las fotos.
+--
+--  Este script cierra ambos y agrega la tabla `consultas`.
 -- ============================================================
 
--- ------------------------------------------------------------
--- 1) Tabla propiedades — RLS
--- ------------------------------------------------------------
-alter table public.propiedades enable row level security;
 
--- Lectura pública (catálogo).
-drop policy if exists "propiedades_select_publico" on public.propiedades;
-create policy "propiedades_select_publico"
-  on public.propiedades
-  for select
-  using (true);
+-- ------------------------------------------------------------
+-- 1) propiedades: cerrar el INSERT público
+-- ------------------------------------------------------------
+-- SELECT público se mantiene (es un catálogo). UPDATE y DELETE ya
+-- estaban correctamente limitados a `authenticated`.
 
--- Escritura solo para usuarios autenticados (admins que iniciaron sesión).
+drop policy if exists "Permitir insertar propiedades a todos" on public.propiedades;
+
 drop policy if exists "propiedades_insert_auth" on public.propiedades;
 create policy "propiedades_insert_auth"
   on public.propiedades
@@ -27,41 +34,77 @@ create policy "propiedades_insert_auth"
   to authenticated
   with check (true);
 
-drop policy if exists "propiedades_update_auth" on public.propiedades;
-create policy "propiedades_update_auth"
-  on public.propiedades
+
+-- ------------------------------------------------------------
+-- 2) storage: separar lectura pública de escritura autenticada
+-- ------------------------------------------------------------
+-- "Public Access" era cmd = ALL para public: permitía DELETE de
+-- cualquier archivo del bucket a cualquier visitante.
+
+drop policy if exists "Public Access" on storage.objects;
+drop policy if exists "Permitir subir imagenes a todos jpvprs_0" on storage.objects;
+
+drop policy if exists "img_props_select_publico" on storage.objects;
+create policy "img_props_select_publico"
+  on storage.objects
+  for select
+  to public
+  using (bucket_id = 'imagenes_propiedades');
+
+drop policy if exists "img_props_insert_auth" on storage.objects;
+create policy "img_props_insert_auth"
+  on storage.objects
+  for insert
+  to authenticated
+  with check (bucket_id = 'imagenes_propiedades');
+
+drop policy if exists "img_props_update_auth" on storage.objects;
+create policy "img_props_update_auth"
+  on storage.objects
   for update
   to authenticated
-  using (true)
-  with check (true);
+  using (bucket_id = 'imagenes_propiedades')
+  with check (bucket_id = 'imagenes_propiedades');
 
-drop policy if exists "propiedades_delete_auth" on public.propiedades;
-create policy "propiedades_delete_auth"
-  on public.propiedades
+drop policy if exists "img_props_delete_auth" on storage.objects;
+create policy "img_props_delete_auth"
+  on storage.objects
   for delete
   to authenticated
-  using (true);
-
--- (Opcional, más estricto) Si querés limitar a una lista de admins,
--- creá una tabla public.admins(user_id uuid primary key) y reemplazá
--- "to authenticated ... using (true)" por:
---   using (auth.uid() in (select user_id from public.admins))
+  using (bucket_id = 'imagenes_propiedades');
 
 
 -- ------------------------------------------------------------
--- 2) Tabla consultas — leads del formulario de contacto
+-- 3) storage: límites del bucket
 -- ------------------------------------------------------------
+-- Estaba sin límite de tamaño ni de tipo MIME: se podía subir
+-- cualquier archivo de cualquier peso.
+
+update storage.buckets
+set file_size_limit = 10485760,  -- 10 MB
+    allowed_mime_types = array['image/jpeg','image/png','image/webp','image/avif']
+where id = 'imagenes_propiedades';
+
+
+-- ------------------------------------------------------------
+-- 4) Tabla consultas — leads del formulario de contacto
+-- ------------------------------------------------------------
+-- OJO: propiedades.id es UUID, no bigint.
+
 create table if not exists public.consultas (
-  id           bigint generated always as identity primary key,
-  created_at   timestamptz not null default now(),
+  id           uuid primary key default gen_random_uuid(),
+  created_at   timestamptz not null default timezone('utc', now()),
   nombre       text not null,
   email        text,
   telefono     text,
   mensaje      text not null,
-  propiedad_id bigint references public.propiedades(id) on delete set null,
+  propiedad_id uuid references public.propiedades(id) on delete set null,
   origen       text,                       -- 'home' | 'propiedad' | etc.
   atendida     boolean not null default false
 );
+
+create index if not exists consultas_created_at_idx
+  on public.consultas (created_at desc);
 
 alter table public.consultas enable row level security;
 
@@ -91,38 +134,26 @@ create policy "consultas_update_auth"
 
 
 -- ------------------------------------------------------------
--- 3) Storage — bucket imagenes_propiedades
+-- 5) Índices y default del teléfono
 -- ------------------------------------------------------------
--- Asegurate de que el bucket exista y sea público para lectura:
---   insert into storage.buckets (id, name, public)
---   values ('imagenes_propiedades', 'imagenes_propiedades', true)
---   on conflict (id) do update set public = true;
+-- El catálogo público filtra por publicado y ordena por fecha.
+create index if not exists propiedades_publicado_created_idx
+  on public.propiedades (publicado, created_at desc);
 
--- Lectura pública de las imágenes.
-drop policy if exists "img_props_select_publico" on storage.objects;
-create policy "img_props_select_publico"
-  on storage.objects
-  for select
-  using (bucket_id = 'imagenes_propiedades');
+create index if not exists propiedades_destacado_idx
+  on public.propiedades (destacado)
+  where destacado = true;
 
--- Subida / borrado solo para autenticados.
-drop policy if exists "img_props_insert_auth" on storage.objects;
-create policy "img_props_insert_auth"
-  on storage.objects
-  for insert
-  to authenticated
-  with check (bucket_id = 'imagenes_propiedades');
+-- El default apuntaba al número viejo (5493765067519).
+alter table public.propiedades
+  alter column telefono_vendedor set default '5493764170186';
 
-drop policy if exists "img_props_update_auth" on storage.objects;
-create policy "img_props_update_auth"
-  on storage.objects
-  for update
-  to authenticated
-  using (bucket_id = 'imagenes_propiedades');
 
-drop policy if exists "img_props_delete_auth" on storage.objects;
-create policy "img_props_delete_auth"
-  on storage.objects
-  for delete
-  to authenticated
-  using (bucket_id = 'imagenes_propiedades');
+-- ------------------------------------------------------------
+-- 6) Limpieza pendiente (NO se ejecuta: revisar antes)
+-- ------------------------------------------------------------
+-- La tabla tiene DOS columnas de estado: `estado` (legacy) y
+-- `estado_interno` (la que usa la app). El panel ahora las mantiene
+-- sincronizadas. Cuando confirmes que nada más lee `estado`:
+--
+--   alter table public.propiedades drop column estado;
