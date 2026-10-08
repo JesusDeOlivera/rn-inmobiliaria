@@ -8,7 +8,8 @@ import { ESTADOS_PROPIEDAD } from '../../lib/barrios'
 import { formatPrecio, imagenPrincipal } from '../../lib/format'
 import { listarPropiedades } from '../../lib/propiedades'
 import { listarBarriosAgrupados, listarTipos, listarAgentes } from '../../lib/catalogos'
-import { guardarPropiedad, guardarImagenes, borrarPropiedad, cambiarEstado, cambiarPublicado } from '../../lib/admin'
+import { guardarPropiedad, guardarImagenes, borrarPropiedad, cambiarEstado, cambiarPublicado, subirFotos } from '../../lib/admin'
+import AsistenteIA from '../../components/AsistenteIA'
 
 // Valores por defecto del formulario. Ahora usa las claves foráneas del
 // modelo normalizado (id_barrio, id_tipo, id_agente) en vez de texto libre.
@@ -175,14 +176,8 @@ export default function AdminPanel() {
       // 1) Subir las fotos nuevas, si las hay.
       let urls = formData.imagenesActuales
       if (formData.imagenes.length > 0 && formData.imagenes[0] instanceof File) {
-        const nuevas = []
-        for (const file of formData.imagenes) {
-          const fileName = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${file.name.split('.').pop()}`
-          const { error: upErr } = await supabase.storage.from('imagenes_propiedades').upload(fileName, file)
-          if (upErr) throw new Error('Subiendo imágenes: ' + upErr.message)
-          const { data: { publicUrl } } = supabase.storage.from('imagenes_propiedades').getPublicUrl(fileName)
-          nuevas.push(publicUrl)
-        }
+        const { urls: nuevas, error: errSubida } = await subirFotos(supabase, formData.imagenes)
+        if (errSubida) throw new Error(errSubida)
         urls = nuevas
       }
 
@@ -314,6 +309,13 @@ export default function AdminPanel() {
           >
             {editandoId ? 'Editando propiedad' : 'Cargar nueva'}
           </button>
+          <button
+            type="button" role="tab" aria-selected={tab === 'asistente'}
+            className={tab === 'asistente' ? 'activa' : ''}
+            onClick={() => setTab('asistente')}
+          >
+            Asistente IA
+          </button>
         </div>
 
         {mensaje && (
@@ -322,8 +324,17 @@ export default function AdminPanel() {
           </p>
         )}
 
+        {/* ================= ASISTENTE IA ================= */}
+        {tab === 'asistente' && (
+          <AsistenteIA
+            supabase={supabase}
+            agentes={agentes}
+            onCargada={() => { fetchPropiedades(); setTab('gestionar') }}
+          />
+        )}
+
         {/* ================= FORMULARIO ================= */}
-        {tab === 'cargar' ? (
+        {tab === 'cargar' && (
           <form onSubmit={handleSubmit} className="admin-panel admin-form">
             <div className="admin-form-cabecera">
               <h1>{editandoId ? 'Editar propiedad' : 'Cargar una propiedad'}</h1>
@@ -508,7 +519,9 @@ export default function AdminPanel() {
               {cargando ? 'Guardando…' : editandoId ? 'Guardar cambios' : 'Publicar propiedad'}
             </button>
           </form>
-        ) : (
+        )}
+
+        {tab === 'gestionar' && (
           /* ================= LISTADO ================= */
           <section className="admin-listado">
             {propiedades.length === 0 ? (
