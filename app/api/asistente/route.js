@@ -1,13 +1,19 @@
 import { NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenAI } from '@google/genai'
 import { supabaseServer } from '../../../lib/supabaseServer'
 
 // Asistente de carga de propiedades por IA (pensado para alguien sin
 // práctica con computadoras): charla en lenguaje natural y devuelve una
 // ficha de propiedad ya completa para guardar. Solo responde a usuarios
 // autenticados, igual que /api/geocodificar.
+//
+// Usa la API gratuita de Gemini (Google AI Studio) en vez de una de pago:
+// no requiere tarjeta para el nivel gratuito. GEMINI_API_KEY se consigue en
+// https://aistudio.google.com/apikey.
 
-const anthropic = new Anthropic()
+const MODELO = 'gemini-flash-latest'
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
 
 /** Quita tildes y pasa a minúsculas, para comparar nombres de catálogos. */
 const MARCAS_DIACRITICAS = new RegExp('[' + String.fromCharCode(0x0300) + '-' + String.fromCharCode(0x036f) + ']', 'g')
@@ -88,29 +94,28 @@ export async function POST(request) {
 
   const mensajes = [
     ...(Array.isArray(historial) ? historial : []).map((h) => ({
-      role: h.rol === 'asistente' ? 'assistant' : 'user',
-      content: String(h.texto || ''),
+      role: h.rol === 'asistente' ? 'model' : 'user',
+      parts: [{ text: String(h.texto || '') }],
     })),
-    { role: 'user', content: mensaje },
+    { role: 'user', parts: [{ text: mensaje }] },
   ]
 
   let respuesta
   try {
-    respuesta = await anthropic.messages.create({
-      model: 'claude-opus-5-5',
-      max_tokens: 1024,
-      thinking: { type: 'adaptive' },
-      output_config: { effort: 'low' },
-      system: construirPrompt(tipos.map((t) => t.nombre), barrios.map((b) => b.nombre)),
-      messages: mensajes,
+    respuesta = await ai.models.generateContent({
+      model: MODELO,
+      contents: mensajes,
+      config: {
+        systemInstruction: construirPrompt(tipos.map((t) => t.nombre), barrios.map((b) => b.nombre)),
+        responseMimeType: 'application/json',
+      },
     })
   } catch (err) {
-    console.error('Error llamando a Claude:', err)
+    console.error('Error llamando a Gemini:', err)
     return NextResponse.json({ error: 'El asistente no está disponible ahora. Probá de nuevo en un rato.' }, { status: 502 })
   }
 
-  const bloqueTexto = respuesta.content.find((b) => b.type === 'text')?.text || ''
-  const parseado = parsearJSON(bloqueTexto)
+  const parseado = parsearJSON(respuesta.text || '')
 
   if (!parseado || (parseado.tipo !== 'pregunta' && parseado.tipo !== 'listo')) {
     return NextResponse.json({

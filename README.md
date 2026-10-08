@@ -12,7 +12,7 @@ listado.
   storage de imágenes (`imagenes_propiedades`)
 - **Leaflet + OpenStreetMap** — mapa de propiedades (sin API key)
 - **Tailwind CSS 4** + sistema de diseño propio en `app/globals.css`
-- **Claude API (Anthropic)** — asistente de carga de propiedades por IA en el panel
+- **Gemini API (Google AI Studio, nivel gratuito)** — asistente de carga de propiedades por IA en el panel
 
 ## Puesta en marcha
 
@@ -32,7 +32,7 @@ Abrir http://localhost:3000
 ### Variables de entorno
 
 Ver [`.env.example`](.env.example). Las obligatorias son
-`NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`. `ANTHROPIC_API_KEY`
+`NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`. `GEMINI_API_KEY`
 es obligatoria solo para la pestaña "Asistente IA" del panel (ver más abajo).
 
 ### Base de datos
@@ -83,15 +83,20 @@ completa —tipo, barrio, precio, descripción redactada, etc.— y la guarda é
 mismo, subiendo las fotos y todo. No hace falta tocar el formulario manual
 (que sigue existiendo tal cual, en "Cargar nueva") para usarlo.
 
-- `app/api/asistente/route.js` llama a la API de Claude (`claude-opus-5-5`)
-  del lado del servidor, con la lista real de barrios y tipos de inmueble
-  (desde la base) para que nunca invente un valor fuera de esos catálogos.
+- `app/api/asistente/route.js` llama a la API gratuita de Gemini
+  (`gemini-flash-latest`, Google AI Studio — no pide tarjeta) del lado del
+  servidor, con la lista real de barrios y tipos de inmueble (desde la base)
+  para que nunca invente un valor fuera de esos catálogos.
 - Por seguridad, toda propiedad cargada por el asistente queda **sin
   publicar**: el único paso humano que falta es tocar "Publicar" en el
   Listado una vez revisada.
 - El dictado por voz usa la Web Speech API del navegador (Chrome/Edge); si el
   navegador no la soporta, el botón de micrófono no aparece y se puede
   escribir igual.
+- En el nivel gratuito de Gemini, Google puede usar lo que se envía para
+  mejorar sus modelos (puede ser revisado por personas). No es un problema
+  para datos de propiedades, pero no es el lugar para cargar información
+  sensible de clientes.
 
 ## Estructura
 
