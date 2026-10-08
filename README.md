@@ -12,6 +12,7 @@ listado.
   storage de imágenes (`imagenes_propiedades`)
 - **Leaflet + OpenStreetMap** — mapa de propiedades (sin API key)
 - **Tailwind CSS 4** + sistema de diseño propio en `app/globals.css`
+- **Claude API (Anthropic)** — asistente de carga de propiedades por IA en el panel
 
 ## Puesta en marcha
 
@@ -31,7 +32,8 @@ Abrir http://localhost:3000
 ### Variables de entorno
 
 Ver [`.env.example`](.env.example). Las obligatorias son
-`NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+`NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`. `ANTHROPIC_API_KEY`
+es obligatoria solo para la pestaña "Asistente IA" del panel (ver más abajo).
 
 ### Base de datos
 
@@ -72,6 +74,25 @@ limita el uso y pide un User-Agent identificable. El panel las busca al tocar
 > equivocado es peor que uno aproximado pero correcto. La UI siempre aclara
 > que la ubicación es aproximada.
 
+## Asistente de carga por IA
+
+La pestaña **"Asistente IA"** del panel (`/admin`) está pensada para quien no
+tiene práctica con formularios: se le cuenta la propiedad charlando (texto o
+dictado por voz) y se le adjuntan las fotos, y el asistente arma la ficha
+completa —tipo, barrio, precio, descripción redactada, etc.— y la guarda él
+mismo, subiendo las fotos y todo. No hace falta tocar el formulario manual
+(que sigue existiendo tal cual, en "Cargar nueva") para usarlo.
+
+- `app/api/asistente/route.js` llama a la API de Claude (`claude-opus-5-5`)
+  del lado del servidor, con la lista real de barrios y tipos de inmueble
+  (desde la base) para que nunca invente un valor fuera de esos catálogos.
+- Por seguridad, toda propiedad cargada por el asistente queda **sin
+  publicar**: el único paso humano que falta es tocar "Publicar" en el
+  Listado una vez revisada.
+- El dictado por voz usa la Web Speech API del navegador (Chrome/Edge); si el
+  navegador no la soporta, el botón de micrófono no aparece y se puede
+  escribir igual.
+
 ## Estructura
 
 ```
@@ -83,6 +104,7 @@ app/
   favoritos/              Favoritos guardados en localStorage
   login/                  Login del panel (Supabase Auth)
   admin/                  Panel: alta / edición / baja / estado
+  api/asistente/          Asistente de carga por IA (Claude), server-side
   sitemap.js, robots.js   SEO
 lib/
   config.js               Contactos, URLs, WhatsApp (centralizado)
@@ -103,6 +125,7 @@ components/
   BotonFavorito.js        Botón de favorito (cliente)
   Foto.js                 Wrapper de next/image
   Spinner.js              Estado de carga
+  AsistenteIA.js          Chat del asistente de carga por IA (panel)
 supabase/
   schema.sql              RLS + tabla consultas + políticas de storage
 ```
