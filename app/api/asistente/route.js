@@ -13,7 +13,12 @@ import { supabaseServer } from '../../../lib/supabaseServer'
 
 const MODELO = 'gemini-flash-latest'
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
+// Sin esto, el SDK intenta autenticarse con credenciales de Google Cloud
+// (ADC) en vez de la clave de API, y tira un error críptico de "default
+// credentials" que no dice nada sobre la variable de entorno que falta.
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY?.trim()
+
+const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY })
 
 /** Quita tildes y pasa a minúsculas, para comparar nombres de catálogos. */
 const MARCAS_DIACRITICAS = new RegExp('[' + String.fromCharCode(0x0300) + '-' + String.fromCharCode(0x036f) + ']', 'g')
@@ -69,6 +74,11 @@ export async function POST(request) {
   const { data: { user }, error: errorAuth } = await supabaseServer.auth.getUser(token)
   if (errorAuth || !user) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+
+  if (!GEMINI_API_KEY) {
+    console.error('Falta GEMINI_API_KEY en las variables de entorno del servidor.')
+    return NextResponse.json({ error: 'Al asistente le falta la clave de la API de Gemini (GEMINI_API_KEY) configurada en el servidor.' }, { status: 500 })
   }
 
   let cuerpo
